@@ -1,3 +1,5 @@
+import "./global.css";
+
 export const metadata = { title: "SoftwareVault" };
 
 export default function RootLayout({ children }) {
