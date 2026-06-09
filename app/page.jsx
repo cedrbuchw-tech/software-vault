@@ -1419,7 +1419,7 @@ export default function Vault() {
           </div>
 
           {adminTab==="programs"&&(
-            <div style={{animation:"slidedown .3s cubic-bezier(.22,1,.36,1)"}}>
+            <div style={{animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:14,marginBottom:40}}>
                 {[{l:tr.stp,v:progs.length},{l:tr.std,v:fmt.n(totalDl)},{l:tr.stpin,v:progs.filter(p=>p.featured).length},{l:tr.sttop,v:topProg?.name||"—",sm:true}].map(({l,v,sm})=>(
                   <div key={l} style={{background:th.card,border:th.bdr,padding:"18px 20px",boxShadow:th.sh2,transition:"all .2s ease",cursor:"default","&:hover":{transform:"translateY(-2px)",boxShadow:`${th.sh2.replace("0", "2")}`}}}>
@@ -1492,7 +1492,7 @@ export default function Vault() {
                           </div>
                         </div>
                         {delId===p.id?(
-                          <div style={{display:"flex",gap:6,flexShrink:0,animation:"slidedown .2s cubic-bezier(.22,1,.36,1)"}}>
+                          <div style={{display:"flex",gap:6,flexShrink:0,animation:"slidedown 0.2s cubic-bezier(0.22, 1, 0.36, 1)"}}>
                             <Btn sm v="danger" th={th} onClick={()=>remove(p.id)}>{tr.yd}</Btn>
                             <Btn sm th={th} onClick={()=>setDelId(null)}>{tr.cncl}</Btn>
                           </div>
@@ -1516,8 +1516,8 @@ export default function Vault() {
           )}
 
           {adminTab==="site"&&(
-            <div style={{display:"flex",flexDirection:"column",gap:24,animation:"slidedown .3s cubic-bezier(.22,1,.36,1)}}>
-              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all .2s ease"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:24,animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
+              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all 0.2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,marginBottom:20,letterSpacing:.3,color:th.blk}}>{tr.ss}</h2>
                 <label style={lbl}>{tr.hsl}</label>
                 <textarea style={{...inp,height:80,resize:"vertical",marginBottom:16}} value={heroSubDraft} onChange={e=>setHeroSubDraft(e.target.value)} placeholder={tr.sub}/>
@@ -1568,7 +1568,7 @@ export default function Vault() {
           )}
 
           {adminTab==="secrets"&&(
-            <div style={{animation:"slidedown .3s cubic-bezier(.22,1,.36,1)"}}>
+            <div style={{animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
               <div style={{background:th.card,border:th.bdr,padding:28,boxShadow:th.sh2,marginBottom:28}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,letterSpacing:.3,color:th.blk,marginBottom:10}}>Secret Downloads</h2>
                 <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.85,marginBottom:20}}>Each secret can optionally reveal a hidden download when triggered.</p>
