@@ -1492,17 +1492,17 @@ export default function Vault() {
                           </div>
                         </div>
                         {delId===p.id?(
-                          <div style={{display:"flex",gap:6,flexShrink:0}}>
+                          <div style={{display:"flex",gap:6,flexShrink:0,animation:"slidedown .2s cubic-bezier(.22,1,.36,1)"}}>
                             <Btn sm v="danger" th={th} onClick={()=>remove(p.id)}>{tr.yd}</Btn>
                             <Btn sm th={th} onClick={()=>setDelId(null)}>{tr.cncl}</Btn>
                           </div>
                         ):(
                           <div style={{display:"flex",gap:6,flexShrink:0}}>
-                            <button title={p.featured?tr.upin:tr.pin} onClick={()=>toggleFeatured(p.id)} style={{padding:"5px 10px",border:th.bdr,background:p.featured?"#e03d0c":th.card,color:p.featured?th.card:th.blk,cursor:"pointer",fontSize:13,filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")",transition:"filter .1s, transform .1s"}}
-                              onMouseEnter={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}
+                            <button title={p.featured?tr.upin:tr.pin} onClick={()=>toggleFeatured(p.id)} style={{padding:"5px 10px",border:th.bdr,background:p.featured?"#e03d0c":th.card,color:p.featured?th.card:th.blk,cursor:"pointer",fontSize:13,filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")",transition:"filter .1s, transform .1s, background .2s ease, color .2s ease"}}
+                              onMouseEnter={e=>{e.currentTarget.style.transform="translate(-1px,-1px) scale(1.05)";}}
                               onMouseLeave={e=>{e.currentTarget.style.transform="none";}}
-                              onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px)";}}
-                              onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}>★</button>
+                              onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px) scale(.98)";}}
+                              onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px) scale(1.05)";}}>★</button>
                             <Btn sm th={th} onClick={()=>{setEditId(p.id);setEditForm({name:p.name,desc:p.desc||"",ver:p.ver||"1.0",cat:p.cat||"Tools",url:p.url||"",os:p.os||[],coverImage:p.coverImage||null,screenshots:p.screenshots||[]});setModal("edit");}}>{tr.ed}</Btn>
                             <Btn sm v="danger" th={th} onClick={()=>setDelId(p.id)}>{tr.del}</Btn>
                           </div>
@@ -1517,13 +1517,13 @@ export default function Vault() {
 
           {adminTab==="site"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24,animation:"slidedown .3s cubic-bezier(.22,1,.36,1)}}>
-              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2}}>
+              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all .2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,marginBottom:20,letterSpacing:.3,color:th.blk}}>{tr.ss}</h2>
                 <label style={lbl}>{tr.hsl}</label>
                 <textarea style={{...inp,height:80,resize:"vertical",marginBottom:16}} value={heroSubDraft} onChange={e=>setHeroSubDraft(e.target.value)} placeholder={tr.sub}/>
                 <Btn sm v="primary" th={th} onClick={saveHeroSub}>{tr.ans}</Btn>
               </div>
-              <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2}}>
+              <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:12,letterSpacing:.3,color:th.blk}}>Admin email</h2>
                 <div style={{marginBottom:10}}>
                   <div style={{fontSize:11,color:th.mut,marginBottom:6,fontFamily:"'IBM Plex Mono',monospace"}}>Current</div>
@@ -1537,14 +1537,14 @@ export default function Vault() {
                   <Btn sm v="primary" th={th} onClick={saveAdminEmail}>Save admin email</Btn>
                 </div>
               </div>
-              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2}}>
+              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all .2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,marginBottom:20,letterSpacing:.3,color:th.blk}}>{tr.anh}</h2>
                 {ann.visible&&ann.text&&<div style={{padding:"10px 14px",marginBottom:16,background:annC.bg,border:`1px solid ${annC.b}`,fontSize:12,color:annC.t,fontFamily:"'IBM Plex Mono',monospace",lineHeight:1.6}}>✓ {tr.anl}: {`"${ann.text.slice(0,60)}${ann.text.length>60?"...":""}"`}</div>}
                 <textarea style={{...inp,height:72,resize:"vertical",marginBottom:16}} value={annDraft.text} onChange={e=>setAnnDraft(a=>({...a,text:e.target.value}))} placeholder={tr.anph}/>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:11,color:th.mut,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.ant}:</span>
                   {["info","warning","update"].map(t=>(
-                    <button key={t} onClick={()=>setAnnDraft(a=>({...a,type:t}))} style={{padding:"5px 12px",cursor:"pointer",border:th.bdr,fontSize:11,fontFamily:"'IBM Plex Mono',monospace",background:annDraft.type===t?th.blk:th.card,color:annDraft.type===t?th.card:th.blk}}>
+                    <button key={t} onClick={()=>setAnnDraft(a=>({...a,type:t}))} style={{padding:"5px 12px",cursor:"pointer",border:th.bdr,fontSize:11,fontFamily:"'IBM Plex Mono',monospace",background:annDraft.type===t?th.blk:th.card,color:annDraft.type===t?th.card:th.blk,transition:"all .2s ease"}}>
                       {t==="info"?tr.ani:t==="warning"?tr.anw:tr.anu}
                     </button>
                   ))}
@@ -1552,7 +1552,7 @@ export default function Vault() {
                   {ann.visible&&<Btn sm v="danger" th={th} onClick={clearAnn}>{tr.anc}</Btn>}
                 </div>
               </div>
-              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2}}>
+              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all .2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,marginBottom:20,letterSpacing:.3,color:th.blk}}>{tr.ppadm}</h2>
                 <div style={{marginBottom:16}}><label style={lbl}>{tr.ppurl}</label><input style={inp} value={ppDraft.url} onChange={e=>setPpDraft(p=>({...p,url:e.target.value}))} placeholder="https://paypal.me/yourname"/></div>
                 <div style={{marginBottom:18}}><label style={lbl}>{tr.ppmsglbl}</label><textarea style={{...inp,height:68,resize:"vertical"}} value={ppDraft.msg} onChange={e=>setPpDraft(p=>({...p,msg:e.target.value}))} placeholder={tr.ppm}/></div>
@@ -1587,7 +1587,7 @@ export default function Vault() {
                   const isLive=sett.secretDownloads?.[idx]?.enabled&&sett.secretDownloads?.[idx]?.name;
                   const found=foundSecrets.includes(idx+1);
                   return(
-                    <div key={idx} style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2}}>
+                    <div key={idx} style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
                         <div style={{flex:1,minWidth:0,marginRight:12}}>
                           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
@@ -1635,7 +1635,7 @@ export default function Vault() {
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20,animation:"fadein .2s ease",backdropFilter:"blur(0px)"}} onClick={closeModal}>
           {(modal==="login"||modal==="setup"||modal==="changepw")&&(
-            <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:360,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .2s cubic-bezier(.22,1,.36,1) both"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:360,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .3s cubic-bezier(.22,1,.36,1) both"}}>
               <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,marginBottom:modal==="setup"?10:20,letterSpacing:.3,color:th.blk}}>{modal==="login"?tr.si:modal==="setup"?tr.sat:tr.cp}</h2>
               {modal==="setup"&&<p style={{fontSize:12,color:th.mut,lineHeight:1.8,marginBottom:18,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.ot}</p>}
               {modal==="setup"&&(
@@ -1666,7 +1666,7 @@ export default function Vault() {
             </div>
           )}
           {modal==="edit"&&editId&&(
-            <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:560,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .2s cubic-bezier(.22,1,.36,1) both",maxHeight:"90vh",overflowY:"auto"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:560,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .3s cubic-bezier(.22,1,.36,1) both",maxHeight:"90vh",overflowY:"auto"}}>
               <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,marginBottom:20,letterSpacing:.3,color:th.blk}}>{tr.edh}</h2>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
                 <div><label style={lbl}>{tr.nl.replace(" *","")}</label><input style={inp} value={editForm.name} onChange={e=>setEditForm({...editForm,name:e.target.value})}/></div>
