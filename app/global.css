@@ -12,13 +12,12 @@ html.corrupt-lvl-4 { filter: saturate(1.06) hue-rotate(18deg) contrast(1.08); tr
 html.corrupt-lvl-5 { filter: contrast(1.15) saturate(1.22) hue-rotate(24deg); }
 html.corrupt-lvl-6 { filter: contrast(1.2) saturate(1.3) hue-rotate(-20deg) sepia(.06); }
 html.corrupt-lvl-7 { filter: contrast(1.25) saturate(1.4) hue-rotate(40deg); transform: translateX(1px); }
-html.corrupt-lvl-8 { filter: contrast(1.3) saturate(1.35) hue-rotate(50deg) grayscale(.1) blur(.25px); transform: translate(1px,-1px); }
-html.corrupt-lvl-9 { filter: contrast(1.4) saturate(1.4) hue-rotate(70deg) grayscale(.2) blur(.32px); transform: translateX(1px); }
+html.corrupt-lvl-8 { filter: contrast(1.3) saturate(1.35) hue-rotate(50deg) grayscale(.1) blur(.15px); transform: translate(1px,-1px); }
+html.corrupt-lvl-9 { filter: contrast(1.4) saturate(1.4) hue-rotate(70deg) grayscale(.2) blur(.2px); transform: translateX(1px); }
 html.corrupt-lvl-10 {
-	filter: saturate(.4) contrast(1.85) hue-rotate(125deg) blur(.45px) brightness(.95);
-	animation: final-break 1.8s ease-in-out infinite, jitter 0.14s steps(2) infinite;
+	filter: saturate(.4) contrast(1.85) hue-rotate(125deg) blur(.25px) brightness(.95);
+	animation: final-break 1.8s ease-in-out infinite, jitter 0.24s steps(2) infinite;
 }
-html.corrupt-lvl-8 body::before,
 html.corrupt-lvl-9 body::before,
 html.corrupt-lvl-10 body::before {
 	content: "";
@@ -34,7 +33,15 @@ html.corrupt-lvl-10 body::before {
 	mix-blend-mode: screen;
 	opacity: .18;
 	z-index: 9998;
-	animation: glitch-stripes .18s steps(2) infinite, noise-shift 4.2s linear infinite;
+	animation: glitch-stripes .24s steps(2) infinite, noise-shift 4.2s linear infinite;
+	will-change: transform, opacity;
+}
+html.corrupt-lvl-8 body::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	opacity: 0;
 }
 
 @keyframes glitch-stripes {
@@ -159,6 +166,53 @@ button, input, textarea, select {
 /* Card hover effects */
 [style*="background"][style*="border"] {
 	transition: all .2s ease;
+}
+
+/* Button animations for interactive feedback */
+.btn-animated {
+	transition: filter 0.1s ease, transform 0.1s ease;
+}
+
+.btn-animated:hover {
+	transform: translate(-1px, -1px);
+	filter: drop-shadow(4px 4px 0 currentColor);
+}
+
+.btn-animated:active {
+	transform: translate(1px, 1px);
+	filter: drop-shadow(1px 1px 0 currentColor);
+}
+
+/* Glitch effects on elements when corruption increases */
+html.corrupt-lvl-5 .program-card,
+html.corrupt-lvl-6 .program-card,
+html.corrupt-lvl-7 .program-card,
+html.corrupt-lvl-8 .program-card,
+html.corrupt-lvl-9 .program-card,
+html.corrupt-lvl-10 .program-card {
+	animation: cardGlitch 1.6s infinite alternate;
+}
+
+html.corrupt-lvl-7 button:not(.btn-ghost),
+html.corrupt-lvl-8 button:not(.btn-ghost),
+html.corrupt-lvl-9 button:not(.btn-ghost),
+html.corrupt-lvl-10 button:not(.btn-ghost) {
+	animation: buttonCorrupt 0.12s steps(2) infinite;
+}
+
+html.corrupt-lvl-9 input,
+html.corrupt-lvl-10 input {
+	animation: inputCorrupt 0.18s ease-in-out infinite;
+}
+
+@keyframes buttonCorrupt {
+	0%, 100% { color: inherit; }
+	50% { color: #fb7185; text-shadow: 1px 1px 0 #f43f5e; }
+}
+
+@keyframes inputCorrupt {
+	0%, 100% { border-color: inherit; }
+	50% { border-color: #f43f5e; box-shadow: 0 0 6px rgba(244, 63, 94, 0.3); }
 }
 
 /* Fade animation for toast notifications */

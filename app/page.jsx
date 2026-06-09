@@ -14,34 +14,34 @@ const BLANK_DL = {name:"",desc:"",url:"",enabled:false};
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
    hint:"Enter the hidden keyboard sequence",
-   howto:"Press Up Up Down Down Left Right Left Right anywhere on the page (not in an input). It cracks the vault's code lock and lets corruption spill through."},
+   howto:"Press Up Up Down Down Left Right Left Right anywhere on the page. Code lock cracked."},
   {trigger:"Pulse Overload",
    hint:"Click the logo five times fast",
-   howto:"Click the 'Vault' icon in the header five times quickly. The pulse overloads the system and births a glitch fault."},
+   howto:"Click the 'Vault' icon in the header five times quickly. Fault spawned."},
   {trigger:"Core Breach",
    hint:"Hold the hero title until the core unlocks",
-   howto:"Press and hold the main title for about 1.2 seconds. The vault's central core senses the breach and spills corruption."},
+   howto:"Hold the main title for 1.2 seconds. Core unlocked."},
   {trigger:'Command "open"',
    hint:'Type the vault access word outside inputs',
-   howto:'Type O-P-E-N with focus outside text fields. The vault hears the command and pries a hidden gate open.'},
+   howto:'Type O-P-E-N outside text fields. Gate opened.'},
   {trigger:"Audit Spike",
    hint:"Probe the counters with a fast tap pattern",
-   howto:"Click the program/download/featured counters five times quickly. The audit trace overloads and triggers a glitch spike."},
+   howto:"Click the program/download/featured counters five times quickly. Audit spiked."},
   {trigger:"Faultline Trace",
    hint:"Hold Alt while hovering the footer Vault label",
-   howto:"Hover the footer \"Vault\" text while holding Alt for 2.5 seconds. The integrity trace detects your hidden intent."},
+   howto:"Hover footer \"Vault\" text while holding Alt for 2.5 seconds. Trace detected."},
   {trigger:"Card Fault",
    hint:"Hold any program title until it glitches",
-   howto:"Press and hold a program title for about 1.5 seconds. The card's metadata overheats and leaks a corruption trace."},
+   howto:"Hold a program title for 1.5 seconds. Card fault triggered."},
   {trigger:"Debug Probe",
    hint:"Type debug in the search field",
-   howto:"Type debug into the search bar and press Enter. The vault's probe engages and warps the interface."},
+   howto:"Type debug in search and press Enter. Debug mode active."},
   {trigger:"Schema Override",
    hint:"Shift-click the theme toggle",
-   howto:"Hold Shift and click the theme switch. The schema override injects a hidden style error."},
+   howto:"Shift+click the theme switch. Schema override injected."},
   {trigger:"Schema Flip",
    hint:"Flip themes until the schema fractures",
-   howto:"Toggle light/dark mode ten times rapidly. The vault's schema overheats and fractures into corruption."},
+   howto:"Toggle theme ten times rapidly. Schema fractured."},
 ];
 
 const fmt = {
@@ -1327,9 +1327,11 @@ export default function Vault() {
                 </div>
               )}
               {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
+              {foundSecrets.length >= 3 && (
               <div style={{marginTop:18}}>
-                <button onClick={()=>setHideCorruption(false)} style={{border:th.bdr,background:th.card,color:th.blk,padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,cursor:"pointer",filter:`drop-shadow(2px 2px 0 ${th.sh2.split(" ").slice(3).join(" ")})`}}>Reveal corruption</button>
+                <button className="btn-animated" onClick={()=>setHideCorruption(false)} style={{border:th.bdr,background:th.card,color:th.blk,padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s ease, transform 0.1s ease"}}>Reveal corruption</button>
               </div>
+              )}
             </div>
           </section>
 
@@ -1338,12 +1340,12 @@ export default function Vault() {
               <div style={{display:"flex",flexWrap:"wrap"}}>
                 {CATS.map((c,i)=>{
                   const count=c==="All"?progs.length:progs.filter(p=>p.cat===c).length;
-                  return <button key={c} onClick={()=>setCat(c)} style={{padding:"7px 14px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:th.bdr,marginRight:-2,marginBottom:-2,position:"relative",zIndex:cat===c?2:1,background:cat===c?th.blk:th.card,color:cat===c?th.card:th.blk,transition:"background .1s"}}>
+                  return <button key={c} className="btn-animated" onClick={()=>setCat(c)} style={{padding:"7px 14px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:th.bdr,marginRight:-2,marginBottom:-2,position:"relative",zIndex:cat===c?2:1,background:cat===c?th.blk:th.card,color:cat===c?th.card:th.blk,filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"background .1s, filter 0.1s ease, transform 0.1s ease"}}>
                     {tr.cats[i]||c} <span style={{opacity:.4}}>({count})</span>
                   </button>;
                 })}
               </div>
-              <select value={sort} onChange={e=>setSort(e.target.value)} style={{padding:"7px 12px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:th.inputBg,color:th.blk,cursor:"pointer",filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")",alignSelf:"flex-start"}}>
+              <select className="btn-animated" value={sort} onChange={e=>setSort(e.target.value)} style={{padding:"7px 12px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:th.inputBg,color:th.blk,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,alignSelf:"flex-start",transition:"filter 0.1s ease, transform 0.1s ease"}}>
                 <option value="newest">{tr.sn}</option>
                 <option value="popular">{tr.sp}</option>
                 <option value="az">{tr.sa}</option>
@@ -1352,7 +1354,7 @@ export default function Vault() {
             <input className="secret-search" style={{...inp,padding:"11px 14px",marginBottom:12}} placeholder={tr.search} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={handleSearchKeyDown}/>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:28,paddingTop:12,borderTop:`1px solid ${th.div}`}}>
               <span style={{fontSize:11,color:th.mut,marginRight:4,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.platform}</span>
-              {OSS.map(o=><button key={o.id} onClick={()=>setOsFilter(f=>f.includes(o.id)?f.filter(x=>x!==o.id):[...f,o.id])} style={{padding:"4px 10px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,border:th.bdr,background:osFilter.includes(o.id)?th.blk:th.card,color:osFilter.includes(o.id)?th.card:th.blk,transition:"all .1s"}}>{o.l}</button>)}
+              {OSS.map(o=><button key={o.id} className="btn-animated" onClick={()=>setOsFilter(f=>f.includes(o.id)?f.filter(x=>x!==o.id):[...f,o.id])} style={{padding:"4px 10px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,border:th.bdr,background:osFilter.includes(o.id)?th.blk:th.card,color:osFilter.includes(o.id)?th.card:th.blk,filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"all .1s, filter 0.1s ease, transform 0.1s ease"}}>{o.l}</button>)}
               {osFilter.length>0&&<button onClick={()=>setOsFilter([])} style={{background:"none",border:"none",fontSize:11,color:"#e03d0c",cursor:"pointer",textDecoration:"underline",fontFamily:"'IBM Plex Mono',monospace",padding:0}}>{tr.clear}</button>}
             </div>
           </div>
@@ -1455,7 +1457,7 @@ export default function Vault() {
                 <div style={{marginBottom:22}}>
                   <div style={{display:"flex",marginBottom:12}}>
                     {["url","file"].map((m,i)=>(
-                      <button key={m} onClick={()=>setUploadMode(m)} style={{padding:"8px 18px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,border:th.bdr,marginRight:i===0?-2:0,background:uploadMode===m?th.blk:th.card,color:uploadMode===m?th.card:th.blk,position:"relative",zIndex:uploadMode===m?2:1}}>
+                      <button key={m} className="btn-animated" onClick={()=>setUploadMode(m)} style={{padding:"8px 18px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,border:th.bdr,marginRight:i===0?-2:0,background:uploadMode===m?th.blk:th.card,color:uploadMode===m?th.card:th.blk,position:"relative",zIndex:uploadMode===m?2:1,filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s ease, transform 0.1s ease, background .1s, color .1s"}}>
                         {m==="url"?tr.lu:tr.uf}
                       </button>
                     ))}

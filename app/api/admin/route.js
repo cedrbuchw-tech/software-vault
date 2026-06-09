@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/vault_client";
 import { signToken, verifyToken, getAdminTokenFromReq } from "@/lib/admin_utils";
-import { getLocalSetting, setLocalSetting, deleteLocalSetting } from "@/lib/settings_fallback";
+import { getLocalSetting, setLocalSetting, setLocalSettings, deleteLocalSetting } from "@/lib/settings_fallback";
 import crypto from "crypto";
 
 const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,6 +55,21 @@ async function writeAdminSetting(key, value) {
     }
   }
   setLocalSetting(key, value);
+}
+
+async function writeAdminSettingsBatch(updates) {
+  if (SUPABASE_ENABLED) {
+    try {
+      const svc = getServiceClient();
+      const rows = Object.entries(updates).map(([key, value]) => ({ key, value }));
+      const { error } = await svc.from("settings").upsert(rows);
+      if (!error) return;
+      if (!isMissingTableError(error)) throw error;
+    } catch (err) {
+      if (!isMissingTableError(err)) throw err;
+    }
+  }
+  setLocalSettings(updates);
 }
 
 async function removeAdminSetting(key) {
@@ -125,8 +140,7 @@ export async function POST(req) {
     if (!body.otp) {
       const otp = String(Math.floor(100000 + Math.random() * 900000));
       const expires = Date.now() + OTP_WINDOW_MS;
-      await writeAdminSetting(ADMIN_OTP_KEY, otp);
-      await writeAdminSetting(ADMIN_OTP_EXP_KEY, String(expires));
+      await writeAdminSettingsBatch({ [ADMIN_OTP_KEY]: otp, [ADMIN_OTP_EXP_KEY]: String(expires) });
       const debugOtp = process.env.ADMIN_2FA_DEV_CODE === "true";
       const canSendEmail = email && process.env.ADMIN_EMAIL_2FA_API_URL;
       let emailSent = false;
