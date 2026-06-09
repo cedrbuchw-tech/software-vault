@@ -5,7 +5,7 @@ import { getLocalSetting, setLocalSetting, setLocalSettings, deleteLocalSetting 
 import crypto from "crypto";
 
 const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ADMIN_EMAIL_KEY = "admin_email";
+const ADMIN_EMAIL_KEY = "CedrBuchw@gmail.com";
 const ADMIN_OTP_KEY = "admin_otp";
 const ADMIN_OTP_EXP_KEY = "admin_otp_exp";
 const OTP_WINDOW_MS = 15 * 60 * 1000;
