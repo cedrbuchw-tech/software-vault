@@ -8,7 +8,7 @@ const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env
 const ADMIN_EMAIL_KEY = "admin_email";
 const ADMIN_OTP_KEY = "admin_otp";
 const ADMIN_OTP_EXP_KEY = "admin_otp_exp";
-const OTP_WINDOW_MS = 5 * 60 * 1000;
+const OTP_WINDOW_MS = 15 * 60 * 1000;
 
 // This route provides simple admin setup/login/change endpoints.
 // It stores the admin password hash in the `settings` table under key `admin_pw`.
