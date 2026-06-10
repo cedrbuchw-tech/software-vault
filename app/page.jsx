@@ -506,7 +506,7 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
   };
   const handleContextMenuEnd=()=>{ rightClicked.current=false; clearTimeout(rightClickTimer.current); };
   return(
-    <article className="program-card" onContextMenu={handleContextMenu} onMouseUp={handleContextMenuEnd} onMouseLeave={handleContextMenuEnd} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
+    <article className="program-card" onContextMenu={handleContextMenu} onMouseUp={handleContextMenuEnd} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>{handleContextMenuEnd();setHov(false);}} style={{
       background:th.card,border:th.bdr,display:"flex",flexDirection:"column",position:"relative",
       boxShadow:hov?"6px 6px 0 "+th.blk:th.shd,transform:hov?"translate(-2px,-2px)":"none",
       transition:"box-shadow .14s,transform .14s",
@@ -780,7 +780,7 @@ export default function Vault() {
           setAnnDraft({text:savedSett.ann?.text||"",type:savedSett.ann?.type||"info"});
           setPpDraft({url:savedSett.support?.url||"",msg:savedSett.support?.msg||"",visible:savedSett.support?.visible||false});
           setHeroSubDraft(savedSett.heroSub||"");
-          const dls=Array(10).fill(null).map((_,i)=>savedSett.secretDownloads?.[i]||{...BLANK_DL});
+          const dls=Array(12).fill(null).map((_,i)=>savedSett.secretDownloads?.[i]||{...BLANK_DL});
           setSdDraft(dls);
         }
         const dk=ls.get(K.dark);
