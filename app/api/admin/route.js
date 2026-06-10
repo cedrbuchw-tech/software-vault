@@ -164,8 +164,10 @@ export async function POST(req) {
     }
     const otpValue = body.otp.trim();
     if (!otpValue) return NextResponse.json({ error: "Missing 2FA code" }, { status: 400 });
-    const storedOtp = stored.fallback ? getLocalSetting(ADMIN_OTP_KEY) : stored.data?.admin_otp;
-    const storedExp = stored.fallback ? getLocalSetting(ADMIN_OTP_EXP_KEY) : stored.data?.admin_otp_exp;
+    // Always do a fresh read when verifying OTP to avoid stale data
+    const freshStored = await fetchAdminRecord();
+    const storedOtp = freshStored.fallback ? getLocalSetting(ADMIN_OTP_KEY) : freshStored.data?.admin_otp;
+    const storedExp = freshStored.fallback ? getLocalSetting(ADMIN_OTP_EXP_KEY) : freshStored.data?.admin_otp_exp;
     if (!storedOtp || !storedExp || Date.now() > Number(storedExp)) {
       return NextResponse.json({ error: "The 2FA code expired. Request a new one." }, { status: 400 });
     }

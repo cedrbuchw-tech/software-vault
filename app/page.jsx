@@ -13,56 +13,35 @@ const BLANK_DL = {name:"",desc:"",url:"",enabled:false};
 
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
-   hint:"There's a pattern in the way games used to test if you had permission. Old systems required proof of skill. The vault remembers these ancient protocols. Four directions, twice each, in the right order. But where? On the page? In your browser? The vault listens everywhere.",
-   howto:"Press Up Up Down Down Left Right Left Right anywhere on the page. Code lock cracked.",
-   warning:"⚠️  What you've unlocked has heard you. It knows the old codes now. The logo holds secrets—but only the impatient ones know to click. Don't be impatient. The vault rewards curiosity, not haste."},
+   hint:"Enter the hidden keyboard sequence",
+   howto:"Press Up Up Down Down Left Right Left Right anywhere on the page. Code lock cracked."},
   {trigger:"Pulse Overload",
-   hint:"Every interface has a heartbeat. The vault has one too. In the header, above all things, sits a symbol of what you protect. Some say clicking it once is a greeting. Clicking it five times in quick succession? That's like holding down the alarm. The system notices. The system responds. But rapidly. Very rapidly.",
-   howto:"Click the 'Vault' icon in the header five times quickly. Fault spawned.",
-   warning:"⚠️  Rapid pulses break systems. You've triggered something that shouldn't be triggered so easily. Solid things have cores. Core's have heartbeats. And some heartbeats... should not be disturbed. The main title of this page? It's also a core. If you pressure it long enough, it might crack."},
+   hint:"Click the logo five times fast",
+   howto:"Click the 'Vault' icon in the header five times quickly. Fault spawned."},
   {trigger:"Core Breach",
-   hint:"Words have power. Some words more than others. Think about what would open a vault. What would unlock something sealed? The vault sits at the center of your screen—that hero text at the top. Hold pressure on it. Not a click. Pressure. Sustained. Let it heat up under your finger. Around 1.2 seconds should do it. But you have to be outside of text input fields. The vault doesn't listen to keyboard input—only raw pointer events.",
-   howto:"Hold the main title for 1.2 seconds. Core unlocked.",
-   warning:"⚠️  You've accessed the core. The central intelligence. It's scared now, and scared systems make mistakes. They reveal things. Terrified vaults sometimes respond to spoken commands—but only when you speak them outside of where the vault expects you to speak. Type very carefully. Type slowly. There's a word that will make the vault open its gates. Think about it. What opens vaults?"},
+   hint:"Hold the hero title until the core unlocks",
+   howto:"Hold the main title for 1.2 seconds. Core unlocked."},
   {trigger:'Command "open"',
-   hint:'Magic words exist. In protocols, in interfaces, in the spaces between function calls. Some programmers leave Easter eggs—hidden commands that trigger when you least expect them. Imagine speaking a one-word command: a verb, simple, decisive. Type it. But type it where the vault doesn\'t expect input—not in a search box, not in a form. Anywhere else on the page. Letter by letter. The vault is watching. Waiting. It has four letters. The kind of word you say to a door.',
-   howto:'Type O-P-E-N outside text fields. Gate opened.',
-   warning:"⚠️  The gate is open. But opening gates has consequences. Systems keep records. They maintain statistics. All those programs, all those downloads, all those preferences—they're counted somewhere. Audited. And audit systems? They have triggers. If you click the right spot too many times, the audit system overflows. It cascades. The counters are in the stats area at the top. Programs. Downloads. Featured items. Five clicks each. Five. Quickly."},
+   hint:'Type the vault access word outside inputs',
+   howto:'Type O-P-E-N outside text fields. Gate opened.'},
   {trigger:"Audit Spike",
-   hint:"Every action is logged. Every click is counted. Counters tick upward in the interface, showing programs, downloads, features. These aren't just for show—they're monitored. They're part of the vault's nervous system. If you probe the same counter five times rapidly, the system's attention focuses there. It's like pressing the same nerve repeatedly. The counter overshoots. The audit trace spikes. Where are these counters? Look for the statistics. The numbers that tell a story of activity.",
-   howto:"Click the program/download/featured counters five times quickly. Audit spiked.",
-   warning:"⚠️  The audit system noticed you. Now the vault is paranoid. Paranoid systems check their perimeter. They look for signs of intrusion. The footer of the page contains a label—the word 'Vault' appears there too. But you can't just look at it. You have to approach it carefully. Hold Alt while you hover. Let your intention seep through the Alt key. Maintain contact for 2.5 seconds. The vault will sense the breach attempt and crack open another layer."},
+   hint:"Probe the counters with a fast tap pattern",
+   howto:"Click the program/download/featured counters five times quickly. Audit spiked."},
   {trigger:"Faultline Trace",
-   hint:"Paranoia breeds attention to detail. The vault now watches its boundaries—the edges of the interface. At the very bottom sits a label, a calm word: Vault. It's been there all along, waiting. But the Alt key changes things. Alt is the modifier key for hidden menus, for shortcuts, for things not meant for casual users. Hold Alt. Hover over the footer text. Not a click. Just hovering, with Alt held down. Maintain it. Two and a half seconds. The system has to recognize the pattern, acknowledge your intent, and then—reluctantly—reveal.",
-   howto:"Hover footer \"Vault\" text while holding Alt for 2.5 seconds. Trace detected.",
-   warning:"⚠️  The vault showed you its faults. Faults in systems lead to instability. Instability spreads. The vault's structure is now compromised. Compromised structures have weak points. Those weak points appear in the cards themselves—the program entries on the page. Each card has metadata, has history, has secrets encoded in its presentation. Hold your mouse over a program card's title. Press and hold. Not a regular press. A sustained hold. Around 1.5 seconds. The card will overheat under your attention and crack, exposing what it's been hiding."},
+   hint:"Hold Alt while hovering the footer Vault label",
+   howto:"Hover footer \"Vault\" text while holding Alt for 2.5 seconds. Trace detected."},
   {trigger:"Card Fault",
-   hint:"Structures break under sustained pressure. Cards in the interface are data structures—they hold information, present it, contain it. But hold pressure on the title of any card (any program listing) and the metadata overheats. It can't maintain its composure. Around 1.5 seconds of sustained pointer pressure will cause the card to fault. The title is the access point. The entry to the data structure. Hold it. Let it fail. But where to apply this pressure? Any program card will do. Choose one. Hold its title. Watch what happens when systems fail.",
-   howto:"Hold a program title for 1.5 seconds. Card fault triggered.",
-   warning:"⚠️  You've triggered card faults. The system's defensive layers are crumbling. Crumbling systems expose their internals. They start revealing debug information, internal state, the machinery that was hidden. Debug mode. That's the next frontier. But how do you activate debug mode on a web interface? Search. The search bar accepts queries. But what query would reveal system internals? What word would trip the debug flag? Type it. Search for it. Press Enter. The system will respond.",
-   },
+   hint:"Hold any program title until it glitches",
+   howto:"Hold a program title for 1.5 seconds. Card fault triggered."},
   {trigger:"Debug Probe",
-   hint:"When systems fail, they sometimes enter diagnostic mode. Diagnostic mode exposes internals that were meant to stay hidden. The search interface accepts queries. Normal queries search for programs, for features, for content. But what if you queried something that isn't content? What if you queried the system itself? What if you searched for something that triggers internal flags? There's a word—five letters, common in programming—that means 'output diagnostic information.' When you type this word into the search bar and press Enter, the vault recognizes it as a probe. A deliberate attempt to see what's inside. The vault will respond.",
-   howto:"Type debug in search and press Enter. Debug mode active.",
-   warning:"⚠️  Debug mode exposed the scaffolding. Now you see how fragile everything is. Fragile systems fall apart when you manipulate their environment. Environments can be toggled. Colors can be swapped. Light and dark, inverted, flipped. The theme toggle in the header—that button that switches between light and dark mode. Most people click it once to change the theme. But what if you modified the click? What if you held Shift while clicking? What if you did this modification not once, but repeatedly? Ten times in rapid succession. The rapid modifications would overwhelm the schema. The system would lose track of which mode it's in.",
-   },
+   hint:"Type debug in the search field",
+   howto:"Type debug in search and press Enter. Debug mode active."},
   {trigger:"Schema Override",
-   hint:"Every interface has a theme, a schema—rules for how things look, how they're rendered, what colors they wear. The theme toggle is visible in the header. It lets users switch between light and dark aesthetics. Normal interaction: click it to toggle. But interfaces have hidden interactions. Modifier keys—Shift, Ctrl, Alt—they change how actions are interpreted. When you hold Shift and click the theme toggle, instead of a normal toggle, you're sending a different command. An override. The schema shifts unexpectedly. One shift-click might be a coincidence. But what about Shift-clicking repeatedly? What about finding the pattern that breaks the system's color understanding?",
-   howto:"Shift+click the theme switch. Schema override injected.",
-   warning:"⚠️  You've injected an override into the schema system. The system doesn't know its identity anymore. Light? Dark? Both? Neither? When systems lose their identity, they lose stability. Stability requires knowing which state you're in. If you flip the state repeatedly—toggle the theme over and over, rapidly, without pause—the system's confusion compounds. Toggle it ten times in three seconds. The schema won't be able to keep up. The contradiction will crack reality itself. The vault will have no choice but to acknowledge the final breach.",
-   },
+   hint:"Shift-click the theme toggle",
+   howto:"Shift+click the theme switch. Schema override injected."},
   {trigger:"Schema Flip",
-   hint:"Identity is fragile. When a system doesn't know if it's in state A or state B, it panics. The theme toggle is your weapon. Click it. Click it again. And again. Not slowly. Not thoughtfully. Rapidly. Franticly. The system will try to keep up with your theme switches. Light to dark, dark to light, light to dark... ten times. In under three seconds. The schema will fracture. It will break. The display will glitch. The very foundation of how the interface presents itself will crack open. And when it cracks, when the schema shatters, the vault will have no choice. It will open completely. Everything will be corrupted. Everything will be exposed. The final secret, the hidden payload—all of it.",
-   howto:"Toggle theme ten times rapidly. Schema fractured.",
-   warning:"🔓 You've won. You've found them all. The vault is open and it's spilling its contents."},
-  {trigger:"Resonance Collapse",
-   hint:"Systems in crisis communicate their panic. They bleed signals across interfaces, creating interference patterns. The logo in the header and the admin controls are both entry points to the vault's command structure. They exist in isolated channels, normally. But what happens when you activate them both in rapid succession? What if you clicked one, then the other, then back again—ten times each, as fast as possible? A resonance pattern would form. The two signals would interfere with each other, colliding, creating standing waves of malfunction. The interface would lose coherence. Colors would bleed. Text would scatter. The vault would scream. Both buttons exist in the header. One symbol, one word. Click between them. Rapidly. Obsessively.",
-   howto:"Rapidly click between logo and admin button 10 times each. Resonance reached.",
-   warning:"⚠️  The interface is bleeding. Signals are crossing. You've created a feedback loop that shouldn't exist."},
-  {trigger:"Void Breach",
-   hint:"Everything has an inverse. Every action has a reaction. The vault you've been penetrating exists in a state of balance—corruption vs. stability, chaos vs. order. What if you could invert that balance completely? What if you held Shift and Alt simultaneously—both modifier keys at once—and then performed interactions in rapid sequence? Logo click. Admin click. Theme toggle. Search query. All of it happening together, amplified by the dual modifiers. The system wouldn't know which mode to enter. Light and dark simultaneously. Admin and user at once. It would create a paradox. A void. The ultimate corruption. The culmination of everything you've done. Hold both keys. Click everything. The vault will shatter.",
-   howto:"Hold Shift+Alt and rapidly click logo, admin, toggle theme 5 times. Void opened.",
-   warning:"🌑 You've opened the void itself. The vault is no longer a vault. It's a window to nothing. Congratulations. Or condolences."},
+   hint:"Flip themes until the schema fractures",
+   howto:"Toggle theme ten times rapidly. Schema fractured."},
 ];
 
 const fmt = {
@@ -1285,22 +1264,14 @@ export default function Vault() {
       <header style={{padding:"14px 40px",borderBottom:`1px solid ${th.div}`,background:th.heroBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:200,gap:10,flexWrap:"wrap"}}>
         <button onClick={handleLogoClick} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Outer vault door frame */}
-            <rect x="2" y="2" width="24" height="24" rx="2" stroke="#e03d0c" strokeWidth="2.5" fill="none"/>
-            {/* Inner security panel */}
-            <rect x="5" y="5" width="18" height="18" rx="1" stroke={th.blk} strokeWidth="1.5" opacity="0.4" fill="none"/>
-            {/* Central glowing orb (corrupted core) */}
-            <circle cx="14" cy="14" r="5" fill="none" stroke="#e03d0c" strokeWidth="2" opacity="0.8"/>
-            <circle cx="14" cy="14" r="3" fill="#e03d0c" opacity="0.6"/>
-            {/* Top lock indicator */}
-            <path d="M 12 10 Q 12 8 14 8 Q 16 8 16 10" stroke="#e03d0c" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-            {/* Scanning lines (corruption spread) */}
-            <line x1="8" y1="14" x2="10" y2="14" stroke="#e03d0c" strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-            <line x1="18" y1="14" x2="20" y2="14" stroke="#e03d0c" strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-            <line x1="14" y1="20" x2="14" y2="22" stroke="#e03d0c" strokeWidth="1.5" opacity="0.5" strokeLinecap="round"/>
-            {/* Corner accent marks (system breach points) */}
-            <circle cx="4" cy="4" r="1.2" fill="#e03d0c" opacity="0.7"/>
-            <circle cx="24" cy="24" r="1.2" fill="#e03d0c" opacity="0.7"/>
+            <circle cx="14" cy="14" r="13" stroke="#e03d0c" strokeWidth="2"/>
+            <circle cx="14" cy="14" r="8.5" stroke={th.blk} strokeWidth="1.5" opacity="0.35"/>
+            <circle cx="14" cy="14" r="2.5" fill="#e03d0c"/>
+            <line x1="14" y1="6" x2="14" y2="10" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="14" y1="18" x2="14" y2="22" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="6" y1="14" x2="10" y2="14" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="18" y1="14" x2="22" y2="14" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="14" cy="4.5" r="1.5" fill="#e03d0c" opacity="0.6"/>
           </svg>
           <span style={{display:"flex",flexDirection:"column",lineHeight:1,gap:1,textAlign:"left"}}>
             <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:3,color:th.mut,textTransform:"uppercase"}}>Software</span>
@@ -1358,7 +1329,7 @@ export default function Vault() {
               {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
               {foundSecrets.length >= 3 && (
               <div style={{marginTop:18}}>
-                <button className="btn-animated" onClick={()=>setHideCorruption(h=>!h)} style={{border:th.bdr,background:th.card,color:th.blk,padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s ease, transform 0.1s ease"}}>{hideCorruption?"Show corruption":"Hide corruption"}</button>
+                <button className="btn-animated" onClick={()=>setHideCorruption(false)} style={{border:th.bdr,background:th.card,color:th.blk,padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s ease, transform 0.1s ease"}}>Reveal corruption</button>
               </div>
               )}
             </div>
@@ -1681,7 +1652,7 @@ export default function Vault() {
                 <>
                   <label style={lbl}>2FA code</label>
                   <input type="text" style={{...inp,marginBottom:12}} value={loginOtp} onChange={e=>setLoginOtp(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")login();}} placeholder="000000" />
-                  <div style={{fontSize:11,color:th.mut,marginBottom:12,lineHeight:1.6,fontFamily:"'IBM Plex Mono',monospace"}}>{adminEmail ? (loginMessage || `2FA code sent to ${adminEmail}.`) : "⚠️  No email configured. Fallback code: 000000"}</div>
+                  <div style={{fontSize:11,color:th.mut,marginBottom:12,lineHeight:1.6,fontFamily:"'IBM Plex Mono',monospace"}}>{loginMessage || `A 2FA code was requested for ${adminEmail||'your admin email'}.`}</div>
                 </>
               )}
               {(modal==="setup"||modal==="changepw")&&(<>
@@ -1757,7 +1728,6 @@ export default function Vault() {
                 <div key={i}>{l||<span style={{opacity:.15}}>·</span>}{i===termLines.length-1&&<span style={{marginLeft:2,animation:"blink .9s step-end infinite",color:"#00ff41"}}>█</span>}</div>
               ))}
             </div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#00ff41",lineHeight:1.6,marginBottom:12,backgroundColor:"rgba(0,255,65,.1)",padding:"8px 10px",borderLeft:"2px solid #00ff41"}}>⚠️  stop. don't click the logo.<br/>you're making this worse.</div>
             <SecretDownloadCard dl={getSd(1)} accentColor="#00cc33" textColor="#00e836" bgColor="rgba(0,255,65,.04)" borderColor="rgba(0,255,65,.15)"/>
           </div>
         </div>
@@ -1774,7 +1744,6 @@ export default function Vault() {
             </div>
             <div style={{fontSize:9,color:"#444",marginBottom:20,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:3}}>SECRET 02/10 — LOGO SEQUENCE</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#666",lineHeight:1.9,marginBottom:20}}>five clicks on the logo.<br/>nobody does that on accident.<br/><br/>i see you poking around.<br/>keep going.</p>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:20,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  The title. Don't hold it.<br/>You don't understand what you're waking up.</p>
             <SecretDownloadCard dl={getSd(2)} accentColor="#e03d0c" textColor="#e8e4d8" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.08)"/>
           </div>
         </div>
@@ -1791,7 +1760,6 @@ export default function Vault() {
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:56,fontWeight:400,color:"#ff8c00",lineHeight:1,marginBottom:20,letterSpacing:.5,animation:"vaultReveal .5s ease both"}}>FOUND<br/>ONE.</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a55",lineHeight:1.9,marginBottom:18}}>{`holding the title until the vault heard you<br/>wasn't in any instructions.<br/><br/>there are no instructions.<br/>you found the breach.`}</p>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:18,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  The word. Say nothing.<br/>The vault is listening.</p>
             <SecretDownloadCard dl={getSd(3)} accentColor="#ff8c00" textColor="#e8d0aa" bgColor="rgba(255,140,0,.04)" borderColor="rgba(255,140,0,.18)"/>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#4a3a25",letterSpacing:1}}>SIG/NOISE: 47.3dB · {new Date().toISOString().slice(0,19).replace("T"," ")}Z</div>
           </div>
@@ -1808,7 +1776,6 @@ export default function Vault() {
             <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#c8a84b",opacity:.6,letterSpacing:2}}>☐ VAULT UNLOCKED — SECRET 04/10</span>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:60,fontWeight:400,lineHeight:1,letterSpacing:.5,margin:"18px 0",animation:"vaultGlow 2.5s ease infinite"}}><span style={{color:"#c8a84b"}}>OPEN.</span></div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#6a5a3a",lineHeight:1.9,marginBottom:18}}>you typed the word.<br/>most people never think to try.</p>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:18,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  The numbers. Don't count them.<br/>They're counting you.</p>
             <SecretDownloadCard dl={getSd(4)} accentColor="#c8a84b" textColor="#e8e0cc" bgColor="rgba(200,168,75,.04)" borderColor="rgba(200,168,75,.2)"/>
           </div>
         </div>
@@ -1831,7 +1798,6 @@ export default function Vault() {
               <div>secrets found: <strong style={{color:"#b40000"}}>{foundSecrets.length}/10</strong></div>
             </div>
             <div style={{height:1,background:"#d0c8a8",marginBottom:16}}/>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:16,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  The footer. Stop touching it.<br/>This is your last warning.</div>
             <SecretDownloadCard dl={getSd(5)} accentColor="#b40000" textColor="#1a1008" bgColor="rgba(180,0,0,.04)" borderColor="rgba(180,0,0,.15)"/>
           </div>
         </div>
@@ -1844,7 +1810,6 @@ export default function Vault() {
             <div style={{fontSize:9,color:"#444",marginBottom:10,letterSpacing:2}}>SECRET 06/10 · FOOTER</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:24,color:"#e8e4d8",marginBottom:10,letterSpacing:.3}}>still here?</div>
             <p style={{fontSize:11,color:"#555",lineHeight:1.85,marginBottom:getSd(6)?.enabled&&getSd(6)?.name?14:0}}>you hovered {`"`}vault{`"`} while holding Alt.<br/>the faultline trace lit after 2.5 seconds.<br/>the vault answered.</p>
-            <p style={{fontSize:10,color:"#e03d0c",lineHeight:1.6,marginBottom:getSd(6)?.enabled&&getSd(6)?.name?14:10,backgroundColor:"rgba(224,61,12,.1)",padding:"8px 10px",borderLeft:"2px solid #e03d0c"}}>⚠️  The cards. Hold them.<br/>Just... hold them and see what happens.</p>
             <SecretDownloadCard dl={getSd(6)} accentColor="#888" textColor="#ccc" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.07)"/>
           </div>
           <div style={{position:"absolute",bottom:-8,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:"8px solid #2a2a2a"}}/>
@@ -1864,7 +1829,6 @@ export default function Vault() {
               you held a program title long enough for the card to overheat.<br/>
               the vault exposed the metadata and a fault line opened.
             </div>
-            <div style={{fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:24,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  Debug mode. Type the forbidden word.<br/>The system is begging for it.</div>
             <SecretDownloadCard dl={getSd(7)} accentColor="#7c3aed" textColor="#fff" bgColor="rgba(124,58,237,.06)" borderColor="rgba(124,58,237,.14)"/>
           </div>
         </div>
@@ -1880,7 +1844,6 @@ export default function Vault() {
               you typed <strong style={{color:"#a78bfa"}}>debug</strong> into the search field and pressed Enter.<br/>
               the vault&apos;s probe latched on and fractured the interface.
             </div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:24,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  The switch. One shift, that's all it takes.<br/>Don't.</div>
             <SecretDownloadCard dl={getSd(8)} accentColor="#a78bfa" textColor="#eef2ff" bgColor="rgba(167,139,250,.06)" borderColor="rgba(167,139,250,.18)"/>
           </div>
         </div>
@@ -1909,7 +1872,6 @@ export default function Vault() {
                 </div>
               ))}
             </div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#e03d0c",lineHeight:1.7,marginBottom:20,marginTop:20,backgroundColor:"rgba(224,61,12,.1)",padding:"10px 12px",borderLeft:"2px solid #e03d0c"}}>⚠️  Keep flipping. Just... keep flipping until you can't anymore.</div>
             <SecretDownloadCard dl={getSd(9)} accentColor="#38bdf8" textColor="#eef2ff" bgColor="rgba(56,189,248,.05)" borderColor="rgba(56,189,248,.2)"/>
           </div>
         </div>
@@ -1931,7 +1893,6 @@ export default function Vault() {
               the vault doesn&apos;t know which side it is.<br/>
               your screen is now live corruption.
             </p>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#e03d0c",lineHeight:1.8,marginBottom:20,backgroundColor:"rgba(224,61,12,.1)",padding:"12px 14px",borderLeft:"3px solid #e03d0c"}}>🔓 The vault is open.<br/>And it's hungry.</div>
             <SecretDownloadCard dl={getSd(10)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
         </div>
