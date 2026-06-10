@@ -8,6 +8,7 @@ const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env
 const ADMIN_EMAIL_KEY = "admin_email";
 const ADMIN_OTP_KEY = "admin_otp";
 const ADMIN_OTP_EXP_KEY = "admin_otp_exp";
+const TWO_FACTOR_ENABLED_KEY = "two_factor_enabled";
 const OTP_WINDOW_MS = 15 * 60 * 1000;
 
 // This route provides simple admin setup/login/change endpoints.
@@ -29,7 +30,7 @@ async function fetchAdminRecord() {
   if (!SUPABASE_ENABLED) return { fallback: true, data: null };
   try {
     const svc = getServiceClient();
-    const result = await svc.from("settings").select("key,value").in("key", ["admin_pw", ADMIN_EMAIL_KEY, ADMIN_OTP_KEY, ADMIN_OTP_EXP_KEY]);
+    const result = await svc.from("settings").select("key,value").in("key", ["admin_pw", ADMIN_EMAIL_KEY, ADMIN_OTP_KEY, ADMIN_OTP_EXP_KEY, TWO_FACTOR_ENABLED_KEY]);
     if (result.error) {
       if (isMissingTableError(result.error)) return { fallback: true, data: null };
       throw result.error;
@@ -137,6 +138,17 @@ export async function POST(req) {
     try { rec = JSON.parse(data.value); } catch { return NextResponse.json({ error: "Corrupt admin record" }, { status: 500 }); }
     const h = crypto.scryptSync(body.pw, rec.salt, 64).toString("hex");
     if (h !== rec.hash) return NextResponse.json({ error: "Wrong password" }, { status: 401 });
+
+    // Check if 2FA is enabled
+    const twoFactorEnabled = stored.fallback ? getLocalSetting(TWO_FACTOR_ENABLED_KEY) === "true" : stored.data?.two_factor_enabled === "true";
+
+    if (!twoFactorEnabled) {
+      const token = signToken({ ts: Date.now() });
+      const res = NextResponse.json({ ok: true });
+      res.headers.append("Set-Cookie", `admin_token=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${60*60*24}`);
+      return res;
+    }
+
     if (!body.otp) {
       const otp = email ? String(Math.floor(100000 + Math.random() * 900000)) : "000000";
       const expires = Date.now() + OTP_WINDOW_MS;
@@ -212,6 +224,18 @@ export async function POST(req) {
       return NextResponse.json({ ok: true });
     } catch (error) {
       return NextResponse.json({ error: error.message || "Could not change password" }, { status: 500 });
+    }
+  }
+
+  if (body.action === "set_2fa") {
+    const token = getAdminTokenFromReq(req);
+    if (!verifyToken(token)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const enabled = body.enabled === true ? "true" : "false";
+    try {
+      await writeAdminSetting(TWO_FACTOR_ENABLED_KEY, enabled);
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      return NextResponse.json({ error: error.message || "Could not update 2FA setting" }, { status: 500 });
     }
   }
 

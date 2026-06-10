@@ -648,7 +648,7 @@ function SecretLock({onClose}) {
 export default function Vault() {
   const [progs,setProgs]           = useState([]);
   const [likes,setLikes]           = useState([]);
-  const [sett,setSett]             = useState({ann:{text:"",type:"info",visible:false},support:{url:"",msg:"",visible:false},heroSub:"",secretDownloads:[]});
+  const [sett,setSett]             = useState({ann:{text:"",type:"info",visible:false},support:{url:"",msg:"",visible:false},heroSub:"",secretDownloads:[],twoFactorEnabled:false});
   const [ready,setReady]           = useState(false);
   const [isDark,setIsDark]         = useState(false);
   const [lang,setLang]             = useState("en");
@@ -672,6 +672,7 @@ export default function Vault() {
   const [annDraft,setAnnDraft]     = useState({text:"",type:"info"});
   const [ppDraft,setPpDraft]       = useState({url:"",msg:"",visible:false});
   const [heroSubDraft,setHeroSubDraft] = useState("");
+  const [twoFactorEnabledDraft,setTwoFactorEnabledDraft] = useState(false);
   const [sdDraft,setSdDraft]       = useState(Array(12).fill(null).map(()=>({...BLANK_DL})));
   const [loadingDl,setLoadingDl]   = useState(null);
   const [busy,setBusy]             = useState(false);
@@ -780,6 +781,7 @@ export default function Vault() {
           setAnnDraft({text:savedSett.ann?.text||"",type:savedSett.ann?.type||"info"});
           setPpDraft({url:savedSett.support?.url||"",msg:savedSett.support?.msg||"",visible:savedSett.support?.visible||false});
           setHeroSubDraft(savedSett.heroSub||"");
+          setTwoFactorEnabledDraft(savedSett.twoFactorEnabled||false);
           const dls=Array(12).fill(null).map((_,i)=>savedSett.secretDownloads?.[i]||{...BLANK_DL});
           setSdDraft(dls);
         }
@@ -1062,6 +1064,19 @@ export default function Vault() {
   const clearAnn=async()=>{const s={...sett,ann:{text:"",type:"info",visible:false}};await saveSett(s);setAnnDraft({text:"",type:"info"});ping("Cleared.");};
   const saveSupport=async()=>{const s={...sett,support:{...ppDraft}};await saveSett(s);ping("Saved.");};
   const saveHeroSub=async()=>{const s={...sett,heroSub:heroSubDraft};await saveSett(s);ping("Saved.");};
+  const saveTwoFactorSetting=async()=>{
+    try{
+      const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_2fa',enabled:twoFactorEnabledDraft})});
+      const j=await r.json();
+      if(r.ok && j.ok){
+        const s={...sett,twoFactorEnabled:twoFactorEnabledDraft};
+        await saveSett(s);
+        ping(twoFactorEnabledDraft?"2FA enabled.":"2FA disabled.");
+      } else {
+        ping(j.error||'Could not save 2FA setting','err');
+      }
+    }catch(e){ping('Request failed','err');}
+  };
   const saveAdminEmail=async()=>{
     if(!adminEmailDraft||!adminEmailDraft.includes("@")){ping("Enter a valid email.","err");return;}
     try{
@@ -1569,6 +1584,17 @@ export default function Vault() {
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <Btn sm v="primary" th={th} onClick={saveAdminEmail}>Save admin email</Btn>
+                </div>
+              </div>
+              <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
+                <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:12,letterSpacing:.3,color:th.blk}}>Two-Factor Authentication</h2>
+                <p style={{fontSize:12,color:th.mut,marginBottom:14,fontFamily:"'IBM Plex Mono',monospace",lineHeight:1.6}}>Require a 2FA code when logging in. If disabled, only password is required.</p>
+                <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+                  <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.blk,userSelect:"none"}}>
+                    <input type="checkbox" checked={twoFactorEnabledDraft} onChange={e=>setTwoFactorEnabledDraft(e.target.checked)} style={{width:14,height:14,cursor:"pointer",accentColor:"#e03d0c"}}/>
+                    Enable 2FA
+                  </label>
+                  <Btn sm v="primary" th={th} onClick={saveTwoFactorSetting}>Save</Btn>
                 </div>
               </div>
               <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all .2s ease"}}>
