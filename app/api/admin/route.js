@@ -168,7 +168,10 @@ export async function POST(req) {
     const freshStored = await fetchAdminRecord();
     const storedOtp = freshStored.fallback ? getLocalSetting(ADMIN_OTP_KEY) : freshStored.data?.admin_otp;
     const storedExp = freshStored.fallback ? getLocalSetting(ADMIN_OTP_EXP_KEY) : freshStored.data?.admin_otp_exp;
-    if (!storedOtp || !storedExp || Date.now() > Number(storedExp)) {
+    const now = Date.now();
+    const expTime = storedExp ? Number(storedExp) : 0;
+    if (!storedOtp || !storedExp || now > expTime) {
+      console.error("2FA Error - OTP:", storedOtp, "Exp:", storedExp, "Now:", now, "ExpTime:", expTime, "Expired:", now > expTime);
       return NextResponse.json({ error: "The 2FA code expired. Request a new one." }, { status: 400 });
     }
     if (otpValue !== storedOtp) return NextResponse.json({ error: "Invalid 2FA code" }, { status: 401 });
