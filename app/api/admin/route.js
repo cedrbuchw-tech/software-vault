@@ -140,6 +140,7 @@ export async function POST(req) {
     if (!body.otp) {
       const otp = email ? String(Math.floor(100000 + Math.random() * 900000)) : "000000";
       const expires = Date.now() + OTP_WINDOW_MS;
+      console.log("2FA: Generating OTP", { otp, expires, email });
       await writeAdminSettingsBatch({ [ADMIN_OTP_KEY]: otp, [ADMIN_OTP_EXP_KEY]: String(expires) });
       const debugOtp = process.env.ADMIN_2FA_DEV_CODE === "true";
       const canSendEmail = email && process.env.ADMIN_EMAIL_2FA_API_URL;
@@ -170,6 +171,7 @@ export async function POST(req) {
     const storedExp = freshStored.fallback ? getLocalSetting(ADMIN_OTP_EXP_KEY) : freshStored.data?.admin_otp_exp;
     const now = Date.now();
     const expTime = storedExp ? Number(storedExp) : 0;
+    console.log("2FA: Verifying", { storedOtp, storedExp, expTime, now, fallback: freshStored.fallback, otpMatch: otpValue === storedOtp, expired: now > expTime });
     if (!storedOtp || !storedExp || now > expTime) {
       console.error("2FA Error - OTP:", storedOtp, "Exp:", storedExp, "Now:", now, "ExpTime:", expTime, "Expired:", now > expTime);
       return NextResponse.json({ error: "The 2FA code expired. Request a new one." }, { status: 400 });
