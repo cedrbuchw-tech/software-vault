@@ -5,7 +5,7 @@ import { getLocalSetting, setLocalSetting, setLocalSettings, deleteLocalSetting 
 import crypto from "crypto";
 
 const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ADMIN_EMAIL_KEY = "CedrBuchw@gmail.com";
+const ADMIN_EMAIL_KEY = "admin_email";
 const ADMIN_OTP_KEY = "admin_otp";
 const ADMIN_OTP_EXP_KEY = "admin_otp_exp";
 const OTP_WINDOW_MS = 15 * 60 * 1000;
@@ -138,7 +138,7 @@ export async function POST(req) {
     const h = crypto.scryptSync(body.pw, rec.salt, 64).toString("hex");
     if (h !== rec.hash) return NextResponse.json({ error: "Wrong password" }, { status: 401 });
     if (!body.otp) {
-      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      const otp = email ? String(Math.floor(100000 + Math.random() * 900000)) : "000000";
       const expires = Date.now() + OTP_WINDOW_MS;
       await writeAdminSettingsBatch({ [ADMIN_OTP_KEY]: otp, [ADMIN_OTP_EXP_KEY]: String(expires) });
       const debugOtp = process.env.ADMIN_2FA_DEV_CODE === "true";

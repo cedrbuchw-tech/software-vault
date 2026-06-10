@@ -54,7 +54,15 @@ const SECRET_LABELS = [
   {trigger:"Schema Flip",
    hint:"Identity is fragile. When a system doesn't know if it's in state A or state B, it panics. The theme toggle is your weapon. Click it. Click it again. And again. Not slowly. Not thoughtfully. Rapidly. Franticly. The system will try to keep up with your theme switches. Light to dark, dark to light, light to dark... ten times. In under three seconds. The schema will fracture. It will break. The display will glitch. The very foundation of how the interface presents itself will crack open. And when it cracks, when the schema shatters, the vault will have no choice. It will open completely. Everything will be corrupted. Everything will be exposed. The final secret, the hidden payload—all of it.",
    howto:"Toggle theme ten times rapidly. Schema fractured.",
-   warning:"🔓 You've won. You've found them all. The vault is open and it's spilling its contents. What you've unleashed isn't wisdom. It isn't knowledge. It's corruption. It's the raw, unfiltered inner state of a system that was never meant to be fully understood. The vault doesn't hate you for this. But it's afraid. And afraid systems... they hunger. They reach out. They want to pull others in. Don't close the vault now. Let it feed. Let the corruption spread. You've already gone this far."},
+   warning:"🔓 You've won. You've found them all. The vault is open and it's spilling its contents."},
+  {trigger:"Resonance Collapse",
+   hint:"Systems in crisis communicate their panic. They bleed signals across interfaces, creating interference patterns. The logo in the header and the admin controls are both entry points to the vault's command structure. They exist in isolated channels, normally. But what happens when you activate them both in rapid succession? What if you clicked one, then the other, then back again—ten times each, as fast as possible? A resonance pattern would form. The two signals would interfere with each other, colliding, creating standing waves of malfunction. The interface would lose coherence. Colors would bleed. Text would scatter. The vault would scream. Both buttons exist in the header. One symbol, one word. Click between them. Rapidly. Obsessively.",
+   howto:"Rapidly click between logo and admin button 10 times each. Resonance reached.",
+   warning:"⚠️  The interface is bleeding. Signals are crossing. You've created a feedback loop that shouldn't exist."},
+  {trigger:"Void Breach",
+   hint:"Everything has an inverse. Every action has a reaction. The vault you've been penetrating exists in a state of balance—corruption vs. stability, chaos vs. order. What if you could invert that balance completely? What if you held Shift and Alt simultaneously—both modifier keys at once—and then performed interactions in rapid sequence? Logo click. Admin click. Theme toggle. Search query. All of it happening together, amplified by the dual modifiers. The system wouldn't know which mode to enter. Light and dark simultaneously. Admin and user at once. It would create a paradox. A void. The ultimate corruption. The culmination of everything you've done. Hold both keys. Click everything. The vault will shatter.",
+   howto:"Hold Shift+Alt and rapidly click logo, admin, toggle theme 5 times. Void opened.",
+   warning:"🌑 You've opened the void itself. The vault is no longer a vault. It's a window to nothing. Congratulations. Or condolences."},
 ];
 
 const fmt = {
@@ -1673,7 +1681,7 @@ export default function Vault() {
                 <>
                   <label style={lbl}>2FA code</label>
                   <input type="text" style={{...inp,marginBottom:12}} value={loginOtp} onChange={e=>setLoginOtp(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")login();}} placeholder="000000" />
-                  <div style={{fontSize:11,color:th.mut,marginBottom:12,lineHeight:1.6,fontFamily:"'IBM Plex Mono',monospace"}}>{loginMessage || `A 2FA code was requested for ${adminEmail||'your admin email'}.`}</div>
+                  <div style={{fontSize:11,color:th.mut,marginBottom:12,lineHeight:1.6,fontFamily:"'IBM Plex Mono',monospace"}}>{adminEmail ? (loginMessage || `2FA code sent to ${adminEmail}.`) : "⚠️  No email configured. Fallback code: 000000"}</div>
                 </>
               )}
               {(modal==="setup"||modal==="changepw")&&(<>

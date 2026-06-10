@@ -210,6 +210,42 @@ html.corrupt-lvl-10 input {
 	50% { color: #fb7185; text-shadow: 1px 1px 0 #f43f5e; }
 }
 
+html.corrupt-lvl-10 h1,
+html.corrupt-lvl-10 h2,
+html.corrupt-lvl-10 h3,
+html.corrupt-lvl-10 p {
+	animation: textGlitch 0.15s steps(2) infinite;
+}
+
+html.corrupt-lvl-8 button,
+html.corrupt-lvl-9 button {
+	animation: buttonShimmer 0.3s ease-in-out infinite;
+}
+
+html.corrupt-lvl-10 button {
+	animation: buttonShimmer 0.2s ease-in-out infinite, buttonCorrupt 0.12s steps(2) infinite;
+}
+
+html.corrupt-lvl-9 .program-card,
+html.corrupt-lvl-10 .program-card {
+	animation: cardBleed 0.4s ease-in-out infinite;
+}
+
+@keyframes textGlitch {
+	0%, 100% { text-shadow: 0 0 transparent; }
+	50% { text-shadow: 2px 2px 0 #fb7185, -2px -2px 0 #0ff; }
+}
+
+@keyframes buttonShimmer {
+	0%, 100% { filter: brightness(1); }
+	50% { filter: brightness(1.3) saturate(1.2); }
+}
+
+@keyframes cardBleed {
+	0%, 100% { box-shadow: 0 0 0 transparent; }
+	50% { box-shadow: 0 0 20px rgba(251, 113, 133, 0.4), inset 0 0 10px rgba(251, 113, 133, 0.2); }
+}
+
 @keyframes inputCorrupt {
 	0%, 100% { border-color: inherit; }
 	50% { border-color: #f43f5e; box-shadow: 0 0 6px rgba(244, 63, 94, 0.3); }
