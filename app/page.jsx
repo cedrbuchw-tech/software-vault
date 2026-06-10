@@ -42,6 +42,12 @@ const SECRET_LABELS = [
   {trigger:"Schema Flip",
    hint:"Flip themes until the schema fractures",
    howto:"Toggle theme ten times rapidly. Schema fractured."},
+  {trigger:"Data Cascade",
+   hint:"Right-click a program card to trigger cascade",
+   howto:"Right-click and hold on any program card for 2 seconds. Data cascade initiated."},
+  {trigger:"Vault Resonance",
+   hint:"Click the featured badge repeatedly until resonance",
+   howto:"Click the featured badge (★) 7 times rapidly. Vault resonates."},
 ];
 
 const fmt = {
@@ -470,7 +476,7 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr}) {
   );
 }
 
-function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,loadingDl,th,tr,customDlBtn}) {
+function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMenu,onFeaturedClick,loadingDl,th,tr,customDlBtn}) {
   const [hov,setHov]=useState(false);
   const [heartAnim,setHeartAnim]=useState(false);
   const titleHoldTimer=useRef(null);
@@ -489,8 +495,18 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,loadingDl,t
   const catLabel=catIdx>0?(tr.cats[catIdx]||p.cat):p.cat;
   const hasImages=p.coverImage||(p.screenshots||[]).length>0;
   const isNew=fmt.isNew(p.date);
+  const rightClickTimer=useRef(null);
+  const rightClicked=useRef(false);
+  const handleContextMenu=(e)=>{
+    e.preventDefault();
+    rightClicked.current=true;
+    rightClickTimer.current=setTimeout(()=>{
+      if(rightClicked.current){ onContextMenu?.(p); }
+    },2000);
+  };
+  const handleContextMenuEnd=()=>{ rightClicked.current=false; clearTimeout(rightClickTimer.current); };
   return(
-    <article className="program-card" onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
+    <article className="program-card" onContextMenu={handleContextMenu} onMouseUp={handleContextMenuEnd} onMouseLeave={handleContextMenuEnd} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
       background:th.card,border:th.bdr,display:"flex",flexDirection:"column",position:"relative",
       boxShadow:hov?"6px 6px 0 "+th.blk:th.shd,transform:hov?"translate(-2px,-2px)":"none",
       transition:"box-shadow .14s,transform .14s",
@@ -505,7 +521,7 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,loadingDl,t
       )}
       <div style={{padding:"18px",display:"flex",flexDirection:"column",flex:1}}>
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
-          <span style={{fontSize:10,padding:"3px 8px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",background:p.featured?th.blk:th.card,color:p.featured?th.card:th.blk}}>{p.featured?"★ ":""}{catLabel}</span>
+          <span onClick={p.featured?onFeaturedClick:undefined} style={{fontSize:10,padding:"3px 8px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",background:p.featured?th.blk:th.card,color:p.featured?th.card:th.blk,cursor:p.featured?"pointer":"default"}}>{p.featured?"★ ":""}{catLabel}</span>
           <span style={{fontSize:10,padding:"3px 7px",border:`1px solid ${th.div}`,color:th.mut,fontFamily:"'IBM Plex Mono',monospace"}}>v{p.ver||"1.0"}</span>
         </div>
         <h2 onClick={hasImages?()=>onDetail(p):undefined} onMouseDown={handleTitleDown} onMouseUp={handleTitleUp} onMouseLeave={handleTitleUp} onTouchStart={handleTitleDown} onTouchEnd={handleTitleUp} style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,letterSpacing:.3,lineHeight:1.05,marginBottom:6,color:th.blk,cursor:hasImages?"pointer":"default"}}>{p.name}</h2>
@@ -656,7 +672,7 @@ export default function Vault() {
   const [annDraft,setAnnDraft]     = useState({text:"",type:"info"});
   const [ppDraft,setPpDraft]       = useState({url:"",msg:"",visible:false});
   const [heroSubDraft,setHeroSubDraft] = useState("");
-  const [sdDraft,setSdDraft]       = useState(Array(10).fill(null).map(()=>({...BLANK_DL})));
+  const [sdDraft,setSdDraft]       = useState(Array(12).fill(null).map(()=>({...BLANK_DL})));
   const [loadingDl,setLoadingDl]   = useState(null);
   const [busy,setBusy]             = useState(false);
   const [toast,setToast]           = useState(null);
@@ -673,6 +689,8 @@ export default function Vault() {
   const [secret8,setSecret8]   = useState(false);
   const [secret9,setSecret9]   = useState(false);
   const [secret10,setSecret10] = useState(false);
+  const [secret11,setSecret11] = useState(false);
+  const [secret12,setSecret12] = useState(false);
   const [s7CardName,setS7CardName] = useState("");
   const [chargeProgress,setChargeProgress] = useState(0);
 
@@ -714,6 +732,8 @@ export default function Vault() {
   const holdIntervalRef  = useRef(null);
   const themeClickRef    = useRef(0);
   const themeTimerRef    = useRef(null);
+  const featuredClickRef = useRef(0);
+  const featuredTimerRef = useRef(null);
 
   const tr=TR[lang]||TR.en, th=isDark?THEMES.dark:THEMES.light;
   const gridKey=`${cat}|${sort}|${osFilter.join(",")}|${search}`;
@@ -791,11 +811,11 @@ export default function Vault() {
     foundRef.current=nf; setFoundSecrets(nf);
     setStarAnim(n); setTimeout(()=>setStarAnim(null),1800);
     await Promise.resolve(ls.set(K.found,JSON.stringify(nf)));
-    if(nf.length===10) setTimeout(()=>setAllFoundModal(true),2600);
+    if(nf.length===12) setTimeout(()=>setAllFoundModal(true),2600);
   };
 
   useEffect(()=>{
-    if(foundSecrets.length===10 && !glitchFeatureActive){
+    if(foundSecrets.length===12 && !glitchFeatureActive){
       setHideCorruption(false);
       setFinalSurge(true);
       setTimeout(()=>{
@@ -846,6 +866,18 @@ export default function Vault() {
       setSecret10(true); markSecretFound(10); setTimeout(()=>setSecret10(false),12000);
     } else {
       themeTimerRef.current=setTimeout(()=>{themeClickRef.current=0;},3000);
+    }
+  };
+
+  const handleFeaturedClick=(e)=>{
+    e.stopPropagation();
+    featuredClickRef.current++;
+    clearTimeout(featuredTimerRef.current);
+    if(featuredClickRef.current>=7){
+      featuredClickRef.current=0;
+      setSecret12(true); markSecretFound(12); setTimeout(()=>setSecret12(false),12000);
+    } else {
+      featuredTimerRef.current=setTimeout(()=>{featuredClickRef.current=0;},2000);
     }
   };
 
@@ -1104,7 +1136,7 @@ export default function Vault() {
   );
 
   const CardWithSecrets=({p,...rest})=>(
-    <ProgramCard p={p} {...rest} onTitleHold={(prog)=>{ setS7CardName(prog.name); setSecret7(true); markSecretFound(7); setTimeout(()=>setSecret7(false),14000); }} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
+    <ProgramCard p={p} {...rest} onTitleHold={(prog)=>{ setS7CardName(prog.name); setSecret7(true); markSecretFound(7); setTimeout(()=>setSecret7(false),14000); }} onContextMenu={(prog)=>{ setSecret11(true); markSecretFound(11); setTimeout(()=>setSecret11(false),12000); }} onFeaturedClick={handleFeaturedClick} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
   );
 
   const ChargeDownloadBtn=({prog})=>{
@@ -1323,7 +1355,7 @@ export default function Vault() {
                     const found=foundSecrets.includes(n);
                     return <span key={n} style={{fontSize:15,lineHeight:1,display:"inline-block",color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 6px rgba(200,168,75,.7))":"none",transition:"color .5s, filter .5s",animation:starAnim===n?"starPop .75s cubic-bezier(.22,1,.36,1) both":found?"starGlow 2.5s ease infinite":"none"}}>★</span>;
                   })}
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginLeft:4,opacity:.6}}>{foundSecrets.length}/10{foundSecrets.length===10?" ✓":""}</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginLeft:4,opacity:.6}}>{foundSecrets.length}/12{foundSecrets.length===12?" ✓":""}</span>
                 </div>
               )}
               {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
@@ -1709,6 +1741,8 @@ export default function Vault() {
         {active:secret8,  close:()=>setSecret8(false)},
         {active:secret9,  close:()=>setSecret9(false)},
         {active:secret10, close:()=>setSecret10(false)},
+        {active:secret11, close:()=>setSecret11(false)},
+        {active:secret12, close:()=>setSecret12(false)},
       ].map(({active,close},idx)=>
         active ? <SecretLock key={idx} onClose={close}/> : null
       )}
@@ -1898,26 +1932,65 @@ export default function Vault() {
         </div>
       )}
 
-      {/* ALL 10 FOUND */}
+      {secret11&&(
+        <div style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
+          <div style={{background:th.card,border:th.bdr,padding:"44px 44px",maxWidth:480,width:"100%",boxShadow:`8px 8px 0 ${th.blk}`,animation:"themeGlitch .3s ease both, modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 11/12 — DATA CASCADE</div>
+            <div style={{position:"relative",marginBottom:16}}>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>CASCADE<br/>TRIGGERED</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>CASCADE<br/>TRIGGERED</div>
+            </div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_RIGHT_CLICK_DETECTED · 2s HOLD</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
+              right-click is forbidden. it bubbles.<br/>
+              hold it on a card and watch the data flow.<br/><br/>
+              the vault bleeds when you probe too deep.
+            </p>
+            <SecretDownloadCard dl={getSd(11)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
+          </div>
+        </div>
+      )}
+
+      {secret12&&(
+        <div style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
+          <div style={{background:th.card,border:th.bdr,padding:"44px 44px",maxWidth:480,width:"100%",boxShadow:`8px 8px 0 ${th.blk}`,animation:"themeGlitch .3s ease both, modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 12/12 — VAULT RESONANCE</div>
+            <div style={{position:"relative",marginBottom:16}}>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>RESONANCE<br/>UNLOCKED</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>RESONANCE<br/>UNLOCKED</div>
+            </div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_FEATURED_OVERLOAD · 7 CLICKS</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
+              the vault has favorites. and you found them all.<br/>
+              click the starred badge rapidly until it sings.<br/><br/>
+              all secrets revealed. the vault is yours now.
+            </p>
+            <SecretDownloadCard dl={getSd(12)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
+          </div>
+        </div>
+      )}
+
+      {/* ALL 12 FOUND */}
       {allFoundModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:20,animation:"fadeIn .3s ease",pointerEvents:"none"}}>
           <div style={{background:"#0e0b04",border:"2px solid #c8a84b",padding:"52px 48px",maxWidth:520,width:"100%",textAlign:"center",position:"relative",overflow:"hidden",boxShadow:"0 0 0 6px #1a1408,0 0 120px rgba(200,168,75,.25),14px 14px 0 #000",animation:"allFoundIn .5s cubic-bezier(.22,1,.36,1) both",pointerEvents:"auto"}}>
             <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,transparent,#c8a84b,#fff8dc,#c8a84b,transparent)",backgroundSize:"200% 100%",animation:"goldShimmer 2s linear infinite"}}/>
             <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"linear-gradient(90deg,transparent,#c8a84b,#fff8dc,#c8a84b,transparent)",backgroundSize:"200% 100%",animation:"goldShimmer 2s linear infinite reverse"}}/>
             <div style={{display:"flex",gap:7,justifyContent:"center",marginBottom:28,flexWrap:"wrap"}}>
-              {[0,1,2,3,4,5,6,7,8,9].map(i=>(
+              {[0,1,2,3,4,5,6,7,8,9,10,11].map(i=>(
                 <span key={i} style={{fontSize:26,color:"#c8a84b",display:"inline-block",filter:"drop-shadow(0 0 10px rgba(200,168,75,.9))",animation:`starPop .7s cubic-bezier(.22,1,.36,1) ${i*0.07}s both`}}>★</span>
               ))}
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,letterSpacing:.5,lineHeight:1,marginBottom:8,animation:"vaultGlow 2s ease infinite"}}>
-              <span style={{color:"#c8a84b"}}>ALL TEN.</span>
+              <span style={{color:"#c8a84b"}}>ALL TWELVE.</span>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#c8a84b",opacity:.5,letterSpacing:3,marginBottom:24}}>SECRETS COMPLETE</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a3a",lineHeight:2.1,marginBottom:28}}>
               the konami code. the logo. the title.<br/>
               the word. the stats. the footer.<br/>
               holding a program title. typing debug in search.<br/>
-              shift-clicking the theme. breaking the schema.<br/><br/>
+              shift-clicking the theme. breaking the schema.<br/>
+              right-clicking a card. clicking the stars.<br/><br/>
               <span style={{color:"#c8a84b"}}>this is genuinely impressive.</span>
             </p>
             <button onClick={()=>setAllFoundModal(false)} style={{padding:"12px 32px",background:"#c8a84b",color:"#0a0800",border:"none",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,letterSpacing:2,fontWeight:500,filter:"drop-shadow(4px 4px 0 rgba(0,0,0,.5))",transition:"filter .1s, transform .1s"}}
