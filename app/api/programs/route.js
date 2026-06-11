@@ -20,7 +20,17 @@ export async function GET(req) {
       throw error;
     }
 
-    return NextResponse.json({ programs: data ?? [] });
+    // Transform lowercase column names to camelCase
+    const programs = (data ?? []).map(p => ({
+      ...p,
+      desc: p.description,
+      fileUrl: p.fileurl,
+      fileName: p.filename,
+      fileSize: p.filesize,
+      coverImage: p.coverimage,
+    }));
+
+    return NextResponse.json({ programs });
   } catch (err) {
     if (isMissingTableError(err)) return NextResponse.json({ programs: [] });
     console.error("Error fetching programs:", err);
@@ -49,15 +59,15 @@ export async function POST(req) {
     const progsToSave = programs.map(p => ({
       id: p.id,
       name: p.name,
-      desc: p.desc,
+      description: p.desc,
       ver: p.ver,
       cat: p.cat,
       url: p.url,
-      fileUrl: p.fileUrl,
-      fileName: p.fileName,
-      fileSize: p.fileSize,
+      fileurl: p.fileUrl,
+      filename: p.fileName,
+      filesize: p.fileSize,
       os: Array.isArray(p.os) ? p.os : [],
-      coverImage: p.coverImage,
+      coverimage: p.coverImage,
       screenshots: Array.isArray(p.screenshots) ? p.screenshots : [],
       dl: p.dl || 0,
       likes: p.likes || 0,
