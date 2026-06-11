@@ -12,7 +12,7 @@ export async function POST(req) {
     }
 
     const result = await resend.emails.send({
-      from: "noreply@softwarevault.local",
+      from: "noreply@resend.dev",
       to: email,
       subject: "Your 2FA Code",
       html: `<p>Your 2FA code is: <strong>${otp}</strong></p><p>This code expires in 15 minutes.</p>`,

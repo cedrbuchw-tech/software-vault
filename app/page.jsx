@@ -304,21 +304,20 @@ function Btn({children,v="ghost",onClick,disabled,sm,th,full,style={}}) {
   const bg  = v==="primary"?th.org:v==="dark"?th.blk:th.card;
   const fg  = (v==="primary"||v==="dark")?th.card:v==="danger"?th.org:th.blk;
   const bdr = v==="danger"?`2px solid ${th.org}`:th.bdr;
-  const shColor = th.sh2.split(" ").slice(3).join(" ");
-  const shadow = pressed
-    ? `drop-shadow(1px 1px 0 ${shColor})`
-    : hovered
-    ? `drop-shadow(4px 4px 0 ${shColor})`
-    : `drop-shadow(3px 3px 0 ${shColor})`;
+  const shadowOffset = pressed ? "3px 3px" : hovered ? "4px 4px" : "3px 3px";
+  const buttonTransform = pressed ? "translate(1px,1px)" : hovered ? "translate(-1px,-1px)" : "none";
+  const shadowInverse = pressed ? "translate(-1px,-1px)" : hovered ? "translate(1px,1px)" : "none";
+
   return (
     <button style={{
       padding:sm?"6px 12px":"10px 20px",width:full?"100%":"auto",
       border:bdr,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,
       fontFamily:"'IBM Plex Mono',monospace",fontSize:sm?11:12,
       display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,
-      background:bg,color:fg,filter:shadow,
-      transform:pressed?"translate(1px,1px)":hovered?"translate(-1px,-1px)":"none",
-      transition:"filter 0.1s ease, transform 0.1s ease",
+      background:bg,color:fg,
+      boxShadow:`${shadowOffset} 0 ${th.sh2.split(" ").slice(3).join(" ")}`,
+      transform:buttonTransform,
+      transition:"filter 0.1s ease, transform 0.1s ease, box-shadow 0.1s ease",
       userSelect:"none",outline:"none",...style,
     }}
       onClick={onClick} disabled={disabled}
@@ -341,7 +340,7 @@ function usePressStyle(th) {
     : `drop-shadow(3px 3px 0 ${shColor})`;
   return {
     btnStyle:{filter:shadow,transform:pressed?"translate(1px,1px)":hovered?"translate(-1px,-1px)":"none",transition:"filter 0.1s ease, transform 0.1s ease"},
-    handlers:{onMouseEnter:()=>setHovered(true),onMouseLeave:()=>{setHovered(false);setPressed(false);},onMouseDown:()=>setPressed(true),onMouseUp:()=>setPressed(false)},
+    handlers:{onMouseEnter:(e)=>{e.stopPropagation();setHovered(true);},onMouseLeave:(e)=>{e.stopPropagation();setHovered(false);setPressed(false);},onMouseDown:(e)=>{e.stopPropagation();setPressed(true);},onMouseUp:(e)=>{e.stopPropagation();setPressed(false);}},
   };
 }
 
@@ -476,13 +475,21 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr}) {
   );
 }
 
-function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMenu,onFeaturedClick,loadingDl,th,tr,customDlBtn}) {
+function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMenu,onFeaturedClick,loadingDl,th,tr,customDlBtn,corruptionLevel}) {
   const [hov,setHov]=useState(false);
   const [heartAnim,setHeartAnim]=useState(false);
   const titleHoldTimer=useRef(null);
   const titleHeld=useRef(false);
   const dlPress=usePressStyle(th);
-  const doLike=()=>{if(!liked){setHeartAnim(true);setTimeout(()=>setHeartAnim(false),420);}onLike(p.id);};
+  const keepHoverRef=useRef(null);
+
+  const doLike=(e)=>{
+    e?.stopPropagation?.();
+    setHov(true);
+    if(!liked){setHeartAnim(true);setTimeout(()=>setHeartAnim(false),420);}
+    onLike(p.id);
+  };
+
   const handleTitleDown=()=>{
     titleHeld.current=true;
     clearTimeout(titleHoldTimer.current);
@@ -505,12 +512,25 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
     },2000);
   };
   const handleContextMenuEnd=()=>{ rightClicked.current=false; clearTimeout(rightClickTimer.current); };
+  const handleMouseLeave=(e)=>{
+    if(e.target.closest("button")) return;
+    handleContextMenuEnd();
+    setTimeout(()=>setHov(false), 0);
+  };
+  const handleDownloadClick=(e)=>{
+    e.stopPropagation?.();
+    setHov(true);
+    onDownload(p);
+  };
   return(
-    <article className="program-card" onContextMenu={handleContextMenu} onMouseUp={handleContextMenuEnd} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>{handleContextMenuEnd();setHov(false);}} style={{
-      background:th.card,border:th.bdr,display:"flex",flexDirection:"column",position:"relative",
+    <article className="program-card" onContextMenu={handleContextMenu} onMouseUp={handleContextMenuEnd} onMouseEnter={()=>setHov(true)} onMouseLeave={handleMouseLeave} style={{
+      background:corruptionLevel >= 9 ? `hsl(${Math.random()*360}, 70%, 50%)` : th.card,border:th.bdr,display:"flex",flexDirection:"column",position:"relative",
       boxShadow:hov?"6px 6px 0 "+th.blk:th.shd,transform:hov?"translate(-2px,-2px)":"none",
       transition:"box-shadow .14s,transform .14s",
-      animation:p.featured&&!hov?"featPulse 3s ease infinite":"none"}}>
+      animation:p.featured&&!hov?"featPulse 3s ease infinite":corruptionLevel >= 8 ? "contentShake 0.4s steps(1) infinite" : "none",
+      opacity: corruptionLevel >= 10 ? 0.85 : 1,
+      filter: corruptionLevel >= 11 ? `blur(${corruptionLevel * 0.05}px) contrast(${1 + corruptionLevel * 0.1})` : 'none'
+    }}>
       {isNew&&(
         <div style={{position:"absolute",top:-1,right:12,zIndex:10,background:"#e03d0c",color:"#fff",fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:2,padding:"3px 8px",fontWeight:500,animation:"newPulse 2s ease infinite"}}>NEW</div>
       )}
@@ -540,10 +560,10 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
           filter:`drop-shadow(2px 2px 0 ${liked?"#c5330a":"#e03d0c44"})`,
           transition:"background .12s, border-color .12s, filter 0.1s, transform 0.1s",
         }}
-          onMouseEnter={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"#e03d0c66"})`;if(!liked)e.currentTarget.style.background="#e03d0c18";}}
-          onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"#e03d0c44"})`;if(!liked)e.currentTarget.style.background="transparent";}}
-          onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"#e03d0c44"})`;}}
-          onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}>
+          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"#e03d0c66"})`;if(!liked)e.currentTarget.style.background="#e03d0c18";}}
+          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"#e03d0c44"})`;if(!liked)e.currentTarget.style.background="transparent";}}
+          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"#e03d0c44"})`;}}
+          onMouseUp={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";}}>
           <span style={{fontSize:18,lineHeight:1,display:"inline-block",animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>
           <span style={{fontWeight:500}}>{(p.likes||0)>0?`${fmt.n(p.likes||0)} ${tr.lk}`:tr.lk}</span>
         </button>
@@ -554,7 +574,7 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
             {hasImages&&<span onClick={()=>onDetail(p)} style={{marginLeft:8,color:"#e03d0c",cursor:"pointer",textDecoration:"underline",fontSize:10}}>{(p.screenshots||[]).length+1} photo{((p.screenshots||[]).length+1)!==1?"s":""}</span>}
           </div>
           {customDlBtn ?? (
-            <button onClick={()=>onDownload(p)} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
+            <button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
               {loadingDl===p.id?tr.loading:tr.dl}
             </button>
           )}
@@ -678,6 +698,7 @@ export default function Vault() {
   const [toast,setToast]           = useState(null);
   const [delId,setDelId]           = useState(null);
   const [uploadKey,setUploadKey]   = useState(0);
+  const [isInitializing,setIsInitializing] = useState(true);
 
   const [secret1,setSecret1]   = useState(false);
   const [secret2,setSecret2]   = useState(false);
@@ -805,7 +826,6 @@ export default function Vault() {
           setSett(savedSett);
           setAnnDraft({text:savedSett.ann?.text||"",type:savedSett.ann?.type||"info"});
           setPpDraft({url:savedSett.support?.url||"",msg:savedSett.support?.msg||"",visible:savedSett.support?.visible||false});
-          setHeroSubDraft(savedSett.heroSub||"");
           setTwoFactorEnabledDraft(savedSett.twoFactorEnabled||false);
           const dls=Array(12).fill(null).map((_,i)=>savedSett.secretDownloads?.[i]||{...BLANK_DL});
           setSdDraft(dls);
@@ -818,6 +838,7 @@ export default function Vault() {
         const fd=ls.get(K.found); if(fd){const f=JSON.parse(fd);foundRef.current=f;setFoundSecrets(f);}
       } catch(e){ console.error("Storage load error:",e); }
       setReady(true);
+      setTimeout(()=>setIsInitializing(false), 600);
     })();
   },[]);
 
@@ -827,7 +848,7 @@ export default function Vault() {
     if(typeof document === "undefined") return;
     for(let i=0;i<=10;i++) document.documentElement.classList.remove(`corrupt-lvl-${i}`);
     if(!hideCorruption && foundSecrets.length > 0){
-      const lvl = Math.min(10, foundSecrets.length);
+      const lvl = Math.min(12, foundSecrets.length);
       document.documentElement.classList.add(`corrupt-lvl-${lvl}`);
     }
   },[foundSecrets, hideCorruption]);
@@ -898,6 +919,7 @@ export default function Vault() {
 
   const handleFeaturedClick=(e)=>{
     e.stopPropagation();
+    if(foundSecrets.includes(12)) return;
     featuredClickRef.current++;
     clearTimeout(featuredTimerRef.current);
     if(featuredClickRef.current>=7){
@@ -910,7 +932,7 @@ export default function Vault() {
 
   useEffect(()=>{
     if(!secret1){setTermLines([]);clearInterval(termTimerRef.current);return;}
-    const LINES=["VAULT_OS v1.0.0 — BOOT SEQUENCE","────────────────────────────────────","> scanning for intrusion vectors...","> THREAT IDENTIFIED: ↑↑↓↓←→←→","> source: HUMAN / CURIOUS","> threat level: NON-HOSTILE","> granting maximum clearance...","","> ── CLASSIFIED BROADCAST ──────────","","  ten secrets are hidden","  somewhere in this vault.","","  you just found the first.","  the others are still out there.","","> coordinates locked on your signal.","> good luck, operator.","","> — v","","> CHANNEL CLOSING IN 5..."];
+    const LINES=["VAULT_OS v1.0.0 — BOOT SEQUENCE","────────────────────────────────────","> scanning for intrusion vectors...","> THREAT IDENTIFIED: ↑↑↓↓←→←→","> source: HUMAN / CURIOUS","> threat level: NON-HOSTILE","> granting maximum clearance...","","> ── CLASSIFIED BROADCAST ──────────","","  circles demand repetition.","  some symbols were made to be pressed.","  not once. not in haste.","  but in a rhythm. in a pattern.","","  the vault shows what seekers know to find.","  there is a marked thing at the top.","","> — v","","> CHANNEL CLOSING IN 5..."];
     let i=0; clearInterval(termTimerRef.current);
     termTimerRef.current=setInterval(()=>{
       if(i<LINES.length){setTermLines(p=>[...p,LINES[i]]);i++;}
@@ -1096,7 +1118,7 @@ export default function Vault() {
     const nx=progs.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p);
     try{await saveProgs(nx);}catch{setProgs(nx);}
     if(prog.url) window.open(prog.url,"_blank");
-    else if(prog.fileUrl){const a=document.createElement("a");a.href=prog.fileUrl;a.download=prog.fileName||prog.name;a.click();}
+    else if(prog.fileUrl){const a=document.createElement("a");a.href=`/api/download?url=${encodeURIComponent(prog.fileUrl)}&name=${encodeURIComponent(prog.fileName||prog.name)}`;a.download=prog.fileName||prog.name;a.click();}
     else if(prog.fileData){const a=document.createElement("a");a.href=prog.fileData;a.download=prog.fileName||prog.name;a.click();}
     setLoadingDl(null);
     if(detailProg?.id===prog.id) setDetailProg({...detailProg,dl:(detailProg.dl||0)+1});
@@ -1141,6 +1163,16 @@ export default function Vault() {
       }
     }catch(e){console.error("Email save error:", e);ping('Request failed','err');}
   };
+  const sendTestEmail=async()=>{
+    if(!adminEmailDraft){ping("Enter an email address first.","err");return;}
+    try{
+      setBusy(true);
+      const r=await fetch('/api/test-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:adminEmailDraft})});
+      const j=await r.json();
+      if(r.ok && j.ok){ping("Test email sent! Check your inbox.");setBusy(false);}
+      else{ping(j.error||'Failed to send test email','err');setBusy(false);}
+    }catch(e){ping('Request failed','err');setBusy(false);}
+  };
 
   let vis=[...progs].filter(p=>{
     const mc=cat==="All"||p.cat===cat;
@@ -1175,31 +1207,15 @@ export default function Vault() {
   const totalDl=progs.reduce((a,p)=>a+(p.dl||0),0);
   const topProg=[...progs].sort((a,b)=>(b.dl||0)-(a.dl||0))[0];
   const corruptionLevel = foundSecrets.length;
-  const corruptionLabel = corruptionLevel === 0 ? "stable" : corruptionLevel < 4 ? "frayed" : corruptionLevel < 7 ? "glitched" : corruptionLevel < 10 ? "fractured" : "corrupted";
-  const corruptionColor = corruptionLevel === 0 ? "#4ade80" : corruptionLevel < 4 ? "#facc15" : corruptionLevel < 7 ? "#fb7185" : corruptionLevel < 10 ? "#f43f5e" : "#ef4444";
+  const corruptionLabel = corruptionLevel === 0 ? "stable" : corruptionLevel < 3 ? "frayed" : corruptionLevel < 5 ? "glitched" : corruptionLevel < 8 ? "fractured" : corruptionLevel < 10 ? "severed" : corruptionLevel < 12 ? "shattered" : "destroyed";
+  const corruptionColor = corruptionLevel === 0 ? "#4ade80" : corruptionLevel < 3 ? "#facc15" : corruptionLevel < 5 ? "#fb923c" : corruptionLevel < 8 ? "#fb7185" : corruptionLevel < 10 ? "#dc2626" : corruptionLevel < 12 ? "#7c2d12" : "#1f1f1f";
   const ann=sett.ann||{}, sup=sett.support||{}, annC=th.annC[ann.type]||th.annC.info;
 
   const inp={width:"100%",padding:"10px 12px",border:th.bdr,background:th.inputBg,color:th.blk,fontFamily:"'IBM Plex Mono',monospace",fontSize:13,outline:"none",boxSizing:"border-box",transition:"all .2s ease"};
   const lbl={fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,display:"block",marginBottom:6};
 
-  if(!ready) return(
-    <div style={{minHeight:"100vh",background:"#f0ece0",display:"flex",alignItems:"center",justifyContent:"center",gap:14}}>
-      <svg width="32" height="32" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style={{animation:"spin 2s linear infinite"}}>
-        <style>{"@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}"}</style>
-        <circle cx="14" cy="14" r="13" stroke="#e03d0c" strokeWidth="2"/>
-        <circle cx="14" cy="14" r="2.5" fill="#e03d0c"/>
-        <line x1="14" y1="6" x2="14" y2="10" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
-        <line x1="18" y1="14" x2="22" y2="14" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>
-        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:3,color:"#999",textTransform:"uppercase"}}>Software</span>
-        <span style={{fontFamily:"'Anton',sans-serif",fontSize:24,letterSpacing:.5,color:"#111"}}>Vault</span>
-      </div>
-    </div>
-  );
-
   const CardWithSecrets=({p,...rest})=>(
-    <ProgramCard p={p} {...rest} onTitleHold={(prog)=>{ setS7CardName(prog.name); setSecret7(true); markSecretFound(7); setTimeout(()=>setSecret7(false),14000); }} onContextMenu={(prog)=>{ setSecret11(true); markSecretFound(11); setTimeout(()=>setSecret11(false),12000); }} onFeaturedClick={handleFeaturedClick} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
+    <ProgramCard p={p} {...rest} corruptionLevel={corruptionLevel} onTitleHold={(prog)=>{ setS7CardName(prog.name); setSecret7(true); markSecretFound(7); setTimeout(()=>setSecret7(false),14000); }} onContextMenu={(prog)=>{ setSecret11(true); markSecretFound(11); setTimeout(()=>setSecret11(false),12000); }} onFeaturedClick={handleFeaturedClick} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
   );
 
   const ChargeDownloadBtn=({prog})=>{
@@ -1268,6 +1284,44 @@ export default function Vault() {
 
   return(
     <div id="sv-root" className={postGlitch?"glitchy":""} style={{position:"relative",minHeight:"100vh",overflow:"hidden",background:th.bg,color:th.blk,fontFamily:"'IBM Plex Mono','Courier New',monospace",animation:partyMode?"partyShift .65s linear infinite":"none"}}>
+      {isInitializing&&(
+        <div style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:"fadein .4s ease, fadeout .5s ease 0.5s forwards",overflow:"hidden",pointerEvents:"none"}}>
+          <div style={{position:"absolute",inset:0}}>
+            <div style={{position:"absolute",top:"15%",right:"15%",width:250,height:250,background:"radial-gradient(circle, #e03d0c 0%, transparent 70%)",opacity:0.08,borderRadius:"50%",filter:"blur(50px)"}}/>
+            <div style={{position:"absolute",bottom:"15%",left:"10%",width:180,height:180,background:"radial-gradient(circle, #e03d0c 0%, transparent 70%)",opacity:0.05,borderRadius:"50%",filter:"blur(40px)"}}/>
+          </div>
+          <div style={{textAlign:"center",position:"relative",zIndex:1}}>
+            <div style={{marginBottom:32,position:"relative",display:"flex",justifyContent:"center",alignItems:"center"}}>
+              <svg width="100" height="100" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{animation:"spinLoader 2s linear infinite"}}>
+                <defs>
+                  <filter id="glow-load">
+                    <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <circle cx="16" cy="16" r="14.5" stroke="#e03d0c" strokeWidth="2.5" opacity="0.9"/>
+                <circle cx="16" cy="16" r="10" stroke={th.blk} strokeWidth="1" opacity="0.2"/>
+                <circle cx="16" cy="16" r="3.5" fill="#e03d0c" filter="url(#glow-load)"/>
+                <line x1="16" y1="5" x2="16" y2="10.5" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <line x1="16" y1="21.5" x2="16" y2="27" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <line x1="5" y1="16" x2="10.5" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <line x1="21.5" y1="16" x2="27" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <circle cx="16" cy="4.5" r="1.8" fill="#e03d0c" opacity="0.7"/>
+                <circle cx="27.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
+                <circle cx="4.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
+              </svg>
+            </div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:36,color:th.blk,marginBottom:8,letterSpacing:1,fontWeight:600}}>VAULT</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2.5,marginBottom:28,textTransform:"uppercase"}}>Loading...</div>
+            <div style={{display:"flex",gap:12,justifyContent:"center"}}>
+              {[0,1,2].map(i=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:"#e03d0c",animation:`pulseLoader 1.4s ease-in-out infinite`,animationDelay:`${i*0.25}s`}}/>)}
+            </div>
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap');
         :root { color-scheme: ${isDark?"dark":"light"} !important; }
@@ -1351,26 +1405,40 @@ export default function Vault() {
       )}
 
       {ann.visible&&ann.text&&(
-        <div style={{background:annC.bg,borderBottom:`2px solid ${annC.b}`,padding:"11px 40px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:annC.t,textAlign:"center",lineHeight:1.6,animation:"annSlide .35s cubic-bezier(.22,1,.36,1) both",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-          {ann.text}
+        <div style={{background:annC.bg,borderBottom:`2px solid ${annC.b}`,padding:"11px 40px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:annC.t,textAlign:"center",lineHeight:1.6,animation:"annSlide .35s cubic-bezier(.22,1,.36,1) both",overflow:"hidden",whiteSpace:"nowrap",position:"relative"}}>
+          <div style={{display:"inline-flex",animation:ann.text.length>60?`annMarquee ${Math.max(20, ann.text.length*0.12)}s linear infinite`:"none"}}>
+            <span style={{paddingRight:100}}>{ann.text}</span>
+            <span style={{paddingRight:100}}>{ann.text}</span>
+          </div>
         </div>
       )}
 
-      <header style={{padding:"14px 40px",borderBottom:`1px solid ${th.div}`,background:th.heroBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:200,gap:10,flexWrap:"wrap"}}>
-        <button onClick={handleLogoClick} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="14" cy="14" r="13" stroke="#e03d0c" strokeWidth="2"/>
-            <circle cx="14" cy="14" r="8.5" stroke={th.blk} strokeWidth="1.5" opacity="0.35"/>
-            <circle cx="14" cy="14" r="2.5" fill="#e03d0c"/>
-            <line x1="14" y1="6" x2="14" y2="10" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="14" y1="18" x2="14" y2="22" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="6" y1="14" x2="10" y2="14" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="18" y1="14" x2="22" y2="14" stroke="#e03d0c" strokeWidth="1.5" strokeLinecap="round"/>
-            <circle cx="14" cy="4.5" r="1.5" fill="#e03d0c" opacity="0.6"/>
+      <header style={{padding:"14px 40px",borderBottom:`1px solid ${th.div}`,background:th.heroBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:200,gap:10,flexWrap:"wrap", opacity: corruptionLevel >= 9 ? 0.9 : 1, filter: corruptionLevel >= 11 ? `brightness(${0.9 - corruptionLevel * 0.01})` : 'none'}}>
+        <button onClick={handleLogoClick} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:12,flexShrink:0,transition:"transform 0.2s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            <circle cx="16" cy="16" r="14.5" stroke="#e03d0c" strokeWidth="2.5" opacity="0.9"/>
+            <circle cx="16" cy="16" r="10" stroke={th.blk} strokeWidth="1" opacity="0.2"/>
+            <circle cx="16" cy="16" r="3.5" fill="#e03d0c" filter="url(#glow)"/>
+            <line x1="16" y1="5" x2="16" y2="10.5" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <line x1="16" y1="21.5" x2="16" y2="27" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <line x1="5" y1="16" x2="10.5" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <line x1="21.5" y1="16" x2="27" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <circle cx="16" cy="4.5" r="1.8" fill="#e03d0c" opacity="0.7"/>
+            <circle cx="27.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
+            <circle cx="4.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
           </svg>
-          <span style={{display:"flex",flexDirection:"column",lineHeight:1,gap:1,textAlign:"left"}}>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:3,color:th.mut,textTransform:"uppercase"}}>Software</span>
-            <span style={{fontFamily:"'Anton',sans-serif",fontSize:20,letterSpacing:.5,color:th.blk}}>{logoDisplay==="SoftwareVault"?"Vault":logoDisplay}</span>
+          <span style={{display:"flex",flexDirection:"column",lineHeight:1,gap:2,textAlign:"left"}}>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,letterSpacing:3,color:th.mut,textTransform:"uppercase",fontWeight:500}}>Software</span>
+            <span style={{fontFamily:"'Anton',sans-serif",fontSize:22,letterSpacing:.8,color:th.blk,fontWeight:500}}>{logoDisplay==="SoftwareVault"?"Vault":logoDisplay}</span>
           </span>
         </button>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -1398,10 +1466,10 @@ export default function Vault() {
       </header>
 
       {page==="home"&&(
-        <main>
+        <main style={{opacity: corruptionLevel > 10 ? 0.92 : 1, filter: corruptionLevel >= 8 ? `invert(${corruptionLevel * 0.02})` : 'none'}}>
           <section style={{padding:"60px 40px 48px",borderBottom:`1px solid ${th.div}`,background:th.heroBg}}>
             <div style={{maxWidth:980,margin:"0 auto",position:"relative"}}>
-              <h1 className="hero-title" onMouseDown={handleHeroTitleDown} onMouseUp={handleHeroTitleUp} onMouseLeave={handleHeroTitleUp} onTouchStart={handleHeroTitleDown} onTouchEnd={handleHeroTitleUp} style={{fontFamily:"'Anton',sans-serif",fontSize:"clamp(44px,7vw,84px)",fontWeight:400,lineHeight:1,letterSpacing:.3,marginBottom:18,cursor:"pointer",userSelect:"none"}}>
+              <h1 className="hero-title" onMouseDown={handleHeroTitleDown} onMouseUp={handleHeroTitleUp} onMouseLeave={handleHeroTitleUp} onTouchStart={handleHeroTitleDown} onTouchEnd={handleHeroTitleUp} style={{fontFamily:"'Anton',sans-serif",fontSize:"clamp(44px,7vw,84px)",fontWeight:400,lineHeight:1,letterSpacing:.3,marginBottom:18,cursor:"pointer",userSelect:"none", opacity: corruptionLevel >= 9 ? 0.7 + Math.random() * 0.2 : 1, textShadow: corruptionLevel >= 10 ? '3px 3px 0 #f43f5e, -2px -2px 0 #00ff00' : 'none'}}>
                 <div style={{overflow:"hidden"}}><span style={{display:"block",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) both"}}>{tr.h1[0]}</span></div>
                 <div style={{overflow:"hidden"}}><span style={{display:"block",color:"#e03d0c",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) .07s both"}}>{tr.h1[1]}</span></div>
               </h1>
@@ -1414,9 +1482,9 @@ export default function Vault() {
               {foundSecrets.length>0&&(
                 <div style={{display:"flex",alignItems:"center",gap:5,marginTop:20,paddingTop:16,borderTop:`1px solid ${th.div}`,animation:"starsReveal .5s cubic-bezier(.22,1,.36,1) both",flexWrap:"wrap"}}>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginRight:4,letterSpacing:2,opacity:.6}}>secrets</span>
-                  {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>{
                     const found=foundSecrets.includes(n);
-                    return <span key={n} style={{fontSize:15,lineHeight:1,display:"inline-block",color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 6px rgba(200,168,75,.7))":"none",transition:"color .5s, filter .5s",animation:starAnim===n?"starPop .75s cubic-bezier(.22,1,.36,1) both":found?"starGlow 2.5s ease infinite":"none"}}>★</span>;
+                    return <span key={n} style={{fontSize:15,lineHeight:1,display:"inline-block",color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 6px rgba(200,168,75,.7))":"none",transition:"color .5s, filter .5s",animation:starAnim===n?"starPop .75s cubic-bezier(.22,1,.36,1) both":found?"starGlow 2.5s ease infinite":"none", textShadow: corruptionLevel >= 11 && found ? `0 0 10px #f43f5e, 0 0 20px #ff00ff` : 'none'}}>★</span>;
                   })}
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginLeft:4,opacity:.6}}>{foundSecrets.length}/12{foundSecrets.length===12?" ✓":""}</span>
                 </div>
@@ -1626,6 +1694,7 @@ export default function Vault() {
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <Btn sm v="primary" th={th} onClick={saveAdminEmail}>Save admin email</Btn>
+                  <Btn sm v="secondary" th={th} onClick={sendTestEmail} disabled={busy}>Send test email</Btn>
                 </div>
               </div>
               <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
@@ -1680,7 +1749,7 @@ export default function Vault() {
                     const found=foundSecrets.includes(n);
                     return <span key={n} style={{fontSize:15,color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 5px rgba(200,168,75,.7))":"none",transition:"all .3s"}}>★</span>;
                   })}
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut}}>{foundSecrets.length}/10</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut}}>{foundSecrets.length}/12</span>
                 </div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -1823,7 +1892,7 @@ export default function Vault() {
           <div style={{position:"relative",background:"#020c02",border:"2px solid #00cc33",padding:"36px 44px",maxWidth:540,width:"100%",boxShadow:"0 0 0 1px #001a00,0 0 60px rgba(0,255,65,.2)",animation:"modalIn .3s cubic-bezier(.22,1,.36,1),terminalGlow 4s ease infinite",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#00cc33",opacity:.5,letterSpacing:3}}>↑↑↓↓←→←→</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#00cc33",opacity:.3,letterSpacing:2}}>SECRET 01/10</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#00cc33",opacity:.3,letterSpacing:2}}>SECRET 01/12</span>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#00e836",lineHeight:2.1,minHeight:200,marginBottom:16}}>
               {termLines.map((l,i)=>(
@@ -1844,8 +1913,8 @@ export default function Vault() {
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:2,animation:"glitch1 2.4s steps(1) infinite",mixBlendMode:"screen"}}>HEY YOU.</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#0ff",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:1,animation:"glitch2 3.1s steps(1) infinite",mixBlendMode:"screen",opacity:.6}}>HEY YOU.</div>
             </div>
-            <div style={{fontSize:9,color:"#444",marginBottom:20,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:3}}>SECRET 02/10 — LOGO SEQUENCE</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#666",lineHeight:1.9,marginBottom:20}}>five clicks on the logo.<br/>nobody does that on accident.<br/><br/>i see you poking around.<br/>keep going.</p>
+            <div style={{fontSize:9,color:"#444",marginBottom:20,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:3}}>SECRET 02/12 — LOGO SEQUENCE</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#666",lineHeight:1.9,marginBottom:20}}>you've cracked the first layer. the vault is awake.<br/>symbols surround you in the interface. some are more present than others.<br/>the marked one at the top watches. press it. five times. do not hesitate between presses.</p>
             <SecretDownloadCard dl={getSd(2)} accentColor="#e03d0c" textColor="#e8e4d8" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.08)"/>
           </div>
         </div>
@@ -1858,10 +1927,10 @@ export default function Vault() {
           <div style={{position:"relative",zIndex:10,background:"#0d0a06",border:"2px solid #ff8c00",padding:"40px 44px",maxWidth:460,width:"100%",boxShadow:"0 0 80px rgba(255,140,0,.15),8px 8px 0 #e03d0c",animation:"modalIn .28s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#ff8c00",letterSpacing:2,animation:"scanPulse 1.6s ease infinite"}}>◉ SIGNAL DETECTED</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#ff8c00",opacity:.4,letterSpacing:2}}>SECRET 03/10</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#ff8c00",opacity:.4,letterSpacing:2}}>SECRET 03/12</span>
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:56,fontWeight:400,color:"#ff8c00",lineHeight:1,marginBottom:20,letterSpacing:.5,animation:"vaultReveal .5s ease both"}}>FOUND<br/>ONE.</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a55",lineHeight:1.9,marginBottom:18}}>{`holding the title until the vault heard you<br/>wasn't in any instructions.<br/><br/>there are no instructions.<br/>you found the breach.`}</p>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a55",lineHeight:1.9,marginBottom:18}}>{`the vault sees those who repeat. it has revealed a layer.<br/>now look at what sits largest. what commands the page.<br/>place your hand upon it. not in clicking. in lingering. in pressure. make the vault listen through your stillness.`}</p>
             <SecretDownloadCard dl={getSd(3)} accentColor="#ff8c00" textColor="#e8d0aa" bgColor="rgba(255,140,0,.04)" borderColor="rgba(255,140,0,.18)"/>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#4a3a25",letterSpacing:1}}>SIG/NOISE: 47.3dB · {new Date().toISOString().slice(0,19).replace("T"," ")}Z</div>
           </div>
@@ -1875,9 +1944,9 @@ export default function Vault() {
             <div style={{position:"absolute",top:18,right:18,width:52,height:52,borderRadius:"50%",border:"3px solid #4a3a22",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <div style={{width:18,height:18,borderRadius:"50%",background:"radial-gradient(circle,#3a2a14,#1a1008)",border:"2px solid #4a3a22"}}/>
             </div>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#c8a84b",opacity:.6,letterSpacing:2}}>☐ VAULT UNLOCKED — SECRET 04/10</span>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#c8a84b",opacity:.6,letterSpacing:2}}>☐ VAULT UNLOCKED — SECRET 04/12</span>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:60,fontWeight:400,lineHeight:1,letterSpacing:.5,margin:"18px 0",animation:"vaultGlow 2.5s ease infinite"}}><span style={{color:"#c8a84b"}}>OPEN.</span></div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#6a5a3a",lineHeight:1.9,marginBottom:18}}>you typed the word.<br/>most people never think to try.</p>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#6a5a3a",lineHeight:1.9,marginBottom:18}}>patience breaks the interface. the vault responds to those who refuse to let go.<br/>now it hungers for sound. for words. there is a command that opens doors.<br/>four letters. simple. you say it every time you enter. speak it to the void. anywhere on the page. the vault will hear.</p>
             <SecretDownloadCard dl={getSd(4)} accentColor="#c8a84b" textColor="#e8e0cc" bgColor="rgba(200,168,75,.04)" borderColor="rgba(200,168,75,.2)"/>
           </div>
         </div>
@@ -1889,7 +1958,7 @@ export default function Vault() {
           <div style={{background:"#fdf9f0",border:"1px solid #c8b888",padding:"44px 44px 36px",maxWidth:480,width:"100%",position:"relative",overflow:"hidden",boxShadow:"10px 10px 0 #111",animation:"modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{position:"absolute",top:0,left:0,right:0,height:6,background:"#b40000"}}/>
             <div style={{position:"absolute",top:36,right:28,fontFamily:"'Anton',sans-serif",fontSize:24,color:"rgba(180,0,0,.75)",border:"4px solid rgba(180,0,0,.65)",padding:"5px 12px",transform:"rotate(-12deg)",letterSpacing:3,animation:"stampDrop .45s cubic-bezier(.22,1,.36,1) .15s both"}}>CLASSIFIED</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#888",marginBottom:16,letterSpacing:2}}>VAULT INTERNAL · EYES ONLY · SECRET 05/10</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#888",marginBottom:16,letterSpacing:2}}>VAULT INTERNAL · EYES ONLY · SECRET 05/12</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:26,color:"#1a1008",letterSpacing:.3,lineHeight:1.2,marginBottom:20}}>INTERNAL<br/>STATISTICS</div>
             <div style={{height:1,background:"#d0c8a8",marginBottom:16}}/>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#333",lineHeight:2.4,marginBottom:16}}>
@@ -1900,6 +1969,7 @@ export default function Vault() {
               <div>secrets found: <strong style={{color:"#b40000"}}>{foundSecrets.length}/10</strong></div>
             </div>
             <div style={{height:1,background:"#d0c8a8",marginBottom:16}}/>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#444",lineHeight:1.8,marginBottom:16}}>words open the vault. but the vault keeps records.<br/>numbers live in the interface. they tell stories. they count.<br/>find one of these counters. click it. five times. rapid. urgent. the vault remembers patterns.</div>
             <SecretDownloadCard dl={getSd(5)} accentColor="#b40000" textColor="#1a1008" bgColor="rgba(180,0,0,.04)" borderColor="rgba(180,0,0,.15)"/>
           </div>
         </div>
@@ -1909,9 +1979,9 @@ export default function Vault() {
       {secret6&&(
         <div style={{position:"fixed",bottom:64,left:"50%",zIndex:9000,animation:"ghostFadeIn .5s ease both, ghostFloat 3s ease .5s infinite",pointerEvents:"none"}}>
           <div style={{background:"rgba(10,10,10,.97)",border:"1px solid #2a2a2a",padding:"20px 28px",minWidth:260,boxShadow:"0 -8px 40px rgba(0,0,0,.7)",pointerEvents:"auto"}}>
-            <div style={{fontSize:9,color:"#444",marginBottom:10,letterSpacing:2}}>SECRET 06/10 · FOOTER</div>
+            <div style={{fontSize:9,color:"#444",marginBottom:10,letterSpacing:2}}>SECRET 06/12 · FOOTER</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:24,color:"#e8e4d8",marginBottom:10,letterSpacing:.3}}>still here?</div>
-            <p style={{fontSize:11,color:"#555",lineHeight:1.85,marginBottom:getSd(6)?.enabled&&getSd(6)?.name?14:0}}>you hovered {`"`}vault{`"`} while holding Alt.<br/>the faultline trace lit after 2.5 seconds.<br/>the vault answered.</p>
+            <p style={{fontSize:11,color:"#555",lineHeight:1.85,marginBottom:getSd(6)?.enabled&&getSd(6)?.name?14:0}}>the vault counts. it remembers rapid clicks. you've found the rhythm.<br/>there is a name at the bottom of all things.<br/>one key on your keyboard holds power. the key marked ALT. combine it with presence. hover over the vault's name at the bottom while holding ALT. wait. the vault speaks to the modified.</p>
             <SecretDownloadCard dl={getSd(6)} accentColor="#888" textColor="#ccc" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.07)"/>
           </div>
           <div style={{position:"absolute",bottom:-8,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:"8px solid #2a2a2a"}}/>
@@ -1922,14 +1992,15 @@ export default function Vault() {
       {secret7&&(
         <div style={{position:"fixed",inset:0,background:"#05050a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .08s ease",pointerEvents:"none"}}>
           <div style={{background:"#09090f",border:"2px solid #7c3aed",padding:"48px 44px",maxWidth:520,width:"100%",animation:"modalIn .15s cubic-bezier(.22,1,.36,1)",textAlign:"center",fontFamily:"'Courier New',monospace",pointerEvents:"auto"}}>
-            <div style={{fontSize:9,color:"#8b5cf6",marginBottom:24,letterSpacing:3}}>SECRET 07/10 — CARD FAULT</div>
+            <div style={{fontSize:9,color:"#8b5cf6",marginBottom:24,letterSpacing:3}}>SECRET 07/12 — CARD FAULT</div>
             <div style={{border:"3px dashed #777",width:80,height:80,margin:"0 auto 28px",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <div style={{fontSize:24,color:"#7c3aed",lineHeight:1,animation:"scanPulse 1.1s ease infinite"}}>!</div>
             </div>
             <div style={{fontSize:18,color:"#fff",marginBottom:8,lineHeight:1.7,fontWeight:"bold"}}>{s7CardName||"UNKNOWN PROGRAM"}</div>
             <div style={{fontSize:13,color:"#aaa",lineHeight:2.1,marginBottom:24}}>
-              you held a program title long enough for the card to overheat.<br/>
-              the vault exposed the metadata and a fault line opened.
+              the vault has learned your modifier keys. it respects your patience.<br/>
+              programs display within cards. each card has a title. a name.<br/>
+              find any program. find its title. hold down your mouse. don't release. make the card know you're there. the vault will crack for those who apply sustained pressure to its words.
             </div>
             <SecretDownloadCard dl={getSd(7)} accentColor="#7c3aed" textColor="#fff" bgColor="rgba(124,58,237,.06)" borderColor="rgba(124,58,237,.14)"/>
           </div>
@@ -1940,11 +2011,12 @@ export default function Vault() {
       {secret8&&(
         <div style={{position:"fixed",inset:0,background:"#0d0019",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           <div style={{position:"relative",background:"#070617",border:"1px solid rgba(126,34,206,.4)",padding:"42px 40px",maxWidth:500,width:"100%",boxShadow:"0 0 0 1px rgba(126,34,206,.15),0 0 40px rgba(99,102,241,.18)",animation:"modalIn .2s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"rgba(164,140,255,.75)",letterSpacing:3,marginBottom:18}}>SECRET 08/10 — DEBUG PROBE</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"rgba(164,140,255,.75)",letterSpacing:3,marginBottom:18}}>SECRET 08/12 — DEBUG PROBE</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:42,color:"#c4b5fd",lineHeight:1,letterSpacing:.4,marginBottom:18}}>DEBUG</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#c7d2fe",lineHeight:1.85,marginBottom:24}}>
-              you typed <strong style={{color:"#a78bfa"}}>debug</strong> into the search field and pressed Enter.<br/>
-              the vault&apos;s probe latched on and fractured the interface.
+              you've made the vault's text respond. cards break when you hold their words.<br/>
+              searching is natural. most use the search to find. but what do you search for in a vault?<br/>
+              there is a word. it means to fix broken things. to investigate. to probe. type it in the search. the vault will respond to diagnostic queries.
             </div>
             <SecretDownloadCard dl={getSd(8)} accentColor="#a78bfa" textColor="#eef2ff" bgColor="rgba(167,139,250,.06)" borderColor="rgba(167,139,250,.18)"/>
           </div>
@@ -1957,14 +2029,14 @@ export default function Vault() {
           <div style={{position:"relative",background:"#08101f",border:"1px solid rgba(56,189,248,.25)",padding:"44px",maxWidth:520,width:"100%",boxShadow:"0 0 0 1px rgba(56,189,248,.12),0 0 80px rgba(56,189,248,.14)",animation:"modalIn .1s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",letterSpacing:2,animation:"scanPulse .4s ease infinite"}}>SCHEMA OVERRIDE</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#7dd3fc",letterSpacing:2}}>SECRET 09/10</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#7dd3fc",letterSpacing:2}}>SECRET 09/12</span>
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#7dd3fc",lineHeight:.95,letterSpacing:.5,marginBottom:10,textShadow:"0 0 30px rgba(125,211,252,.35)"}}>OVERRIDE</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#93c5fd",lineHeight:1.6,marginBottom:18,letterSpacing:3}}>SHIFT + CLICK THE THEME BUTTON</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#cfe8ff",lineHeight:1.9,marginBottom:20}}>
-              you shift-clicked the theme control while the system was watching.<br/>
-              the schema tried to overwrite itself and sent a corrupted palette through the page.<br/><br/>
-              fragments of the theme now flicker with blue-white noise.
+              diagnostic words exposed the vault's insides. it knows you're searching now.<br/>
+              there is a button. it controls how you perceive. light and dark. inverted states.<br/>
+              but buttons listen to whispers. hold down the shift key. the one that modifies. then click the perception button. speak to it in a tongue it doesn't expect.
             </p>
             <div style={{display:"flex",gap:10,marginBottom:20,alignItems:"center"}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:1}}>OVERRIDE</span>
@@ -1983,17 +2055,16 @@ export default function Vault() {
       {secret10&&(
         <div style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
           <div style={{background:th.card,border:th.bdr,padding:"44px 44px",maxWidth:480,width:"100%",boxShadow:`8px 8px 0 ${th.blk}`,animation:"themeGlitch .3s ease both, modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 10/10 — SCHEMA FLIP</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 10/12 — SCHEMA FLIP</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>SCHEMA<br/>FRACTURE</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>SCHEMA<br/>FRACTURE</div>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_SCHEMA_OVERFLOW · 10 flips / 3s</div>
               <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
-              theme. theme. theme. theme. theme.<br/>
-              flip. flip. flip. flip. flip.<br/><br/>
-              the vault doesn&apos;t know which side it is.<br/>
-              your screen is now live corruption.
+              the button spoke to you in a modified tongue. the schema inverted. the vault doubts itself now.<br/>
+              that same button still sits in the header. waiting.<br/>
+              ask it to change again. and again. rapid. ten times in succession. so fast it cannot keep track. the vault will fracture when it can't remember which state it inhabits.
             </p>
             <SecretDownloadCard dl={getSd(10)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
@@ -2010,9 +2081,9 @@ export default function Vault() {
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_RIGHT_CLICK_DETECTED · 2s HOLD</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
-              right-click is forbidden. it bubbles.<br/>
-              hold it on a card and watch the data flow.<br/><br/>
-              the vault bleeds when you probe too deep.
+              the right side of the mouse breaks barriers. cards cascade when touched wrongly.<br/>
+              some cards wear badges. golden marks. stars. the vault's chosen ones.<br/>
+              find one. press it. seven times. rapid. relentless. the vault will sing when its favorites are counted in rapid succession.
             </p>
             <SecretDownloadCard dl={getSd(11)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
@@ -2029,9 +2100,9 @@ export default function Vault() {
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_FEATURED_OVERLOAD · 7 CLICKS</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
-              the vault has favorites. and you found them all.<br/>
-              click the starred badge rapidly until it sings.<br/><br/>
-              all secrets revealed. the vault is yours now.
+              the theme button broke under rapid fire. the vault has lost its mind.<br/>
+              cards display programs. everyone clicks them normally. left click. basic interaction.<br/>
+              but there is another way to touch things. the right side of your mouse. press it. hold it. on a card. make the card feel pressure from an unexpected direction. the vault remembers those who violate its expectations.
             </p>
             <SecretDownloadCard dl={getSd(12)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
