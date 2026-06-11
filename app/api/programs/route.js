@@ -33,14 +33,41 @@ export async function POST(req) {
   if (!SUPABASE_ENABLED) return NextResponse.json({ ok: true });
 
   try {
-    const { programs } = await req.json().catch(() => ({ programs: [] }));
-    if (!Array.isArray(programs)) return NextResponse.json({ error: "Invalid programs array" }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const programs = body.programs;
+
+    if (!Array.isArray(programs)) {
+      console.error("Invalid programs array:", programs);
+      return NextResponse.json({ error: "Invalid programs array" }, { status: 400 });
+    }
+
+    console.log("Saving programs to Supabase:", programs.length, "programs");
 
     const svc = getServiceClient();
 
+    // Filter programs to only include fields that exist in the table
+    const progsToSave = programs.map(p => ({
+      id: p.id,
+      name: p.name,
+      desc: p.desc,
+      ver: p.ver,
+      cat: p.cat,
+      url: p.url,
+      os: Array.isArray(p.os) ? p.os : [],
+      coverImage: p.coverImage,
+      screenshots: Array.isArray(p.screenshots) ? p.screenshots : [],
+      dl: p.dl || 0,
+      likes: p.likes || 0,
+      featured: p.featured || false,
+      date: p.date,
+    }));
+
     // Get existing program IDs
     const { data: existing, error: fetchErr } = await svc.from("programs").select("id");
-    if (fetchErr && !isMissingTableError(fetchErr)) throw fetchErr;
+    if (fetchErr && !isMissingTableError(fetchErr)) {
+      console.error("Error fetching existing programs:", fetchErr);
+      throw fetchErr;
+    }
 
     const existingIds = new Set(existing?.map(p => p.id) ?? []);
     const incomingIds = new Set(programs.map(p => p.id).filter(id => id));
@@ -48,20 +75,33 @@ export async function POST(req) {
     // Delete programs not in the incoming list
     const toDelete = Array.from(existingIds).filter(id => !incomingIds.has(id));
     if (toDelete.length > 0) {
+      console.log("Deleting programs:", toDelete);
       const { error: delErr } = await svc.from("programs").delete().in("id", toDelete);
-      if (delErr && !isMissingTableError(delErr)) throw delErr;
+      if (delErr && !isMissingTableError(delErr)) {
+        console.error("Error deleting programs:", delErr);
+        throw delErr;
+      }
     }
 
     // Upsert incoming programs
-    if (programs.length > 0) {
-      const { error: upsertErr } = await svc.from("programs").upsert(programs);
-      if (upsertErr && !isMissingTableError(upsertErr)) throw upsertErr;
+    if (progsToSave.length > 0) {
+      console.log("Upserting programs:", progsToSave.length);
+      const { error: upsertErr } = await svc.from("programs").upsert(progsToSave);
+      if (upsertErr && !isMissingTableError(upsertErr)) {
+        console.error("Error upserting programs:", upsertErr);
+        throw upsertErr;
+      }
     }
 
+    console.log("Successfully saved programs to Supabase");
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (isMissingTableError(err)) return NextResponse.json({ ok: true });
-    console.error("Error saving programs:", err);
+    if (isMissingTableError(err)) {
+      console.log("Table doesn't exist yet, skipping sync");
+      return NextResponse.json({ ok: true });
+    }
+    console.error("Fatal error in programs endpoint:", err);
     return NextResponse.json({ error: err.message || "Failed to save programs" }, { status: 500 });
   }
 }
+
