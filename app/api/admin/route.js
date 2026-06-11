@@ -155,11 +155,14 @@ export async function POST(req) {
       console.log("2FA: Generating OTP", { otp, expires, email });
       await writeAdminSettingsBatch({ [ADMIN_OTP_KEY]: otp, [ADMIN_OTP_EXP_KEY]: String(expires) });
       const debugOtp = process.env.ADMIN_2FA_DEV_CODE === "true";
-      const canSendEmail = email && process.env.ADMIN_EMAIL_2FA_API_URL;
+      const hasResend = email && process.env.RESEND_API_KEY;
       let emailSent = false;
-      if (canSendEmail) {
+      if (hasResend) {
         try {
-          await fetch(process.env.ADMIN_EMAIL_2FA_API_URL, {
+          const baseUrl = req.headers.get('x-forwarded-proto') && req.headers.get('x-forwarded-host')
+            ? `${req.headers.get('x-forwarded-proto')}://${req.headers.get('x-forwarded-host')}`
+            : `${req.headers.get('origin') || 'http://localhost:3000'}`;
+          await fetch(`${baseUrl}/api/email`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, otp }),

@@ -774,7 +774,23 @@ export default function Vault() {
             if (j.adminEmail) setAdminEmail(j.adminEmail);
           }
         } catch (e) { /* ignore */ }
-        const savedProgs=await idbGet(K.progs); if(savedProgs) setProgs(savedProgs);
+
+        // Try to load programs from Supabase first, fall back to IndexedDB
+        let loadedProgs = null;
+        try {
+          const r = await fetch('/api/programs');
+          if (r.ok) {
+            const j = await r.json();
+            if (j.programs && j.programs.length > 0) loadedProgs = j.programs;
+          }
+        } catch (e) { /* ignore */ }
+
+        // Fall back to IndexedDB if Supabase didn't have data
+        if (!loadedProgs) {
+          loadedProgs = await idbGet(K.progs);
+        }
+        if (loadedProgs) setProgs(loadedProgs);
+
         const savedSett=await idbGet(K.sett);
         if(savedSett){
           setSett(savedSett);
@@ -957,8 +973,21 @@ export default function Vault() {
     else statsTimerRef.current=setTimeout(()=>{statsClickRef.current=0;},1500);
   };
 
-  const saveProgs=async l=>{ await idbSet(K.progs,l); setProgs(l); };
-  const saveSett =async s=>{ await idbSet(K.sett,s);  setSett(s);  };
+  const saveProgs=async l=>{
+    try{
+      await idbSet(K.progs,l);
+      setProgs(l);
+      // Sync to Supabase in background
+      fetch('/api/programs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programs: l }),
+      }).catch(e => console.warn("Failed to sync programs to server:", e));
+    }catch(e){
+      console.error("Failed to save programs:",e);
+    }
+  };
+  const saveSett =async s=>{ try{await idbSet(K.sett,s);setSett(s);}catch(e){console.error("Failed to save settings:",e);} };
   const saveSecretDownload=async(idx)=>{
     const s={...sett,secretDownloads:[...sdDraft]};
     await saveSett(s); ping(`Secret #${idx+1} saved.`);
@@ -1041,7 +1070,7 @@ export default function Vault() {
     const u=progs.map(p=>p.id===editId?{...p,name:editForm.name.trim(),desc:editForm.desc.trim(),ver:editForm.ver,cat:editForm.cat,os:editForm.os||[],url:editForm.url||p.url,coverImage:editForm.coverImage!==undefined?editForm.coverImage:p.coverImage,screenshots:editForm.screenshots||p.screenshots||[]}:p);
     await saveProgs(u); setModal(null); setEditId(null); ping("Saved.");
   };
-  const toggleFeatured=async id=>{const u=progs.map(p=>p.id===id?{...p,featured:!p.featured}:p);await saveProgs(u);ping(u.find(p=>p.id===id).featured?"Pinned.":"Unpinned.");};
+  const toggleFeatured=async id=>{const u=progs.map(p=>p.id===id?{...p,featured:!p.featured}:p);await saveProgs(u);const updated=u.find(p=>p.id===id);ping(updated?.featured?"Pinned.":"Unpinned.");};
   const remove=async id=>{await saveProgs(progs.filter(p=>p.id!==id));setDelId(null);ping("Removed.");};
   const download=async prog=>{
     setLoadingDl(prog.id);
