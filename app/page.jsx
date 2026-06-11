@@ -671,7 +671,6 @@ export default function Vault() {
   const [editForm,setEditForm]     = useState({...BLANK});
   const [annDraft,setAnnDraft]     = useState({text:"",type:"info"});
   const [ppDraft,setPpDraft]       = useState({url:"",msg:"",visible:false});
-  const [heroSubDraft,setHeroSubDraft] = useState("");
   const [twoFactorEnabledDraft,setTwoFactorEnabledDraft] = useState(false);
   const [sdDraft,setSdDraft]       = useState(Array(12).fill(null).map(()=>({...BLANK_DL})));
   const [loadingDl,setLoadingDl]   = useState(null);
@@ -1097,7 +1096,7 @@ export default function Vault() {
     const nx=progs.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p);
     try{await saveProgs(nx);}catch{setProgs(nx);}
     if(prog.url) window.open(prog.url,"_blank");
-    else if(prog.fileUrl) window.open(prog.fileUrl,"_blank");
+    else if(prog.fileUrl){const a=document.createElement("a");a.href=prog.fileUrl;a.download=prog.fileName||prog.name;a.click();}
     else if(prog.fileData){const a=document.createElement("a");a.href=prog.fileData;a.download=prog.fileName||prog.name;a.click();}
     setLoadingDl(null);
     if(detailProg?.id===prog.id) setDetailProg({...detailProg,dl:(detailProg.dl||0)+1});
@@ -1113,7 +1112,6 @@ export default function Vault() {
   const saveAnn=async()=>{const s={...sett,ann:{...annDraft,visible:true}};await saveSett(s);ping("Saved.");};
   const clearAnn=async()=>{const s={...sett,ann:{text:"",type:"info",visible:false}};await saveSett(s);setAnnDraft({text:"",type:"info"});ping("Cleared.");};
   const saveSupport=async()=>{const s={...sett,support:{...ppDraft}};await saveSett(s);ping("Saved.");};
-  const saveHeroSub=async()=>{const s={...sett,heroSub:heroSubDraft};await saveSett(s);ping("Saved.");};
   const saveTwoFactorSetting=async()=>{
     try{
       const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_2fa',enabled:twoFactorEnabledDraft})});
@@ -1351,7 +1349,7 @@ export default function Vault() {
       )}
 
       {ann.visible&&ann.text&&(
-        <div style={{background:annC.bg,borderBottom:`2px solid ${annC.b}`,padding:"11px 40px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:annC.t,textAlign:"center",lineHeight:1.6,animation:"annSlide .35s cubic-bezier(.22,1,.36,1) both"}}>
+        <div style={{background:annC.bg,borderBottom:`2px solid ${annC.b}`,padding:"11px 40px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:annC.t,textAlign:"center",lineHeight:1.6,animation:"annSlide .35s cubic-bezier(.22,1,.36,1) both",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
           {ann.text}
         </div>
       )}
@@ -1614,12 +1612,6 @@ export default function Vault() {
 
           {adminTab==="site"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24,animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
-              <div style={{background:th.card,border:th.bdr,padding:32,boxShadow:th.sh2,transition:"all 0.2s ease"}}>
-                <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,marginBottom:20,letterSpacing:.3,color:th.blk}}>{tr.ss}</h2>
-                <label style={lbl}>{tr.hsl}</label>
-                <textarea style={{...inp,height:80,resize:"vertical",marginBottom:16}} value={heroSubDraft} onChange={e=>setHeroSubDraft(e.target.value)} placeholder={tr.sub}/>
-                <Btn sm v="primary" th={th} onClick={saveHeroSub}>{tr.ans}</Btn>
-              </div>
               <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:12,letterSpacing:.3,color:th.blk}}>Admin email</h2>
                 <div style={{marginBottom:10}}>
