@@ -775,21 +775,31 @@ export default function Vault() {
           }
         } catch (e) { /* ignore */ }
 
-        // Try to load programs from Supabase first, fall back to IndexedDB
+        // Try to load programs from Supabase first
         let loadedProgs = null;
+        let supabaseLoaded = false;
         try {
           const r = await fetch('/api/programs');
           if (r.ok) {
             const j = await r.json();
-            if (j.programs && j.programs.length > 0) loadedProgs = j.programs;
+            loadedProgs = j.programs || [];
+            supabaseLoaded = true;
+            console.log("Loaded programs from Supabase:", loadedProgs.length);
           }
-        } catch (e) { /* ignore */ }
-
-        // Fall back to IndexedDB if Supabase didn't have data
-        if (!loadedProgs) {
-          loadedProgs = await idbGet(K.progs);
+        } catch (e) {
+          console.warn("Could not load from Supabase:", e);
         }
-        if (loadedProgs) setProgs(loadedProgs);
+
+        // Only fall back to IndexedDB if Supabase load failed AND IndexedDB has data
+        if (!supabaseLoaded || (loadedProgs && loadedProgs.length === 0)) {
+          const idbProgs = await idbGet(K.progs);
+          if (idbProgs && idbProgs.length > 0) {
+            loadedProgs = idbProgs;
+            console.log("Loaded programs from IndexedDB:", idbProgs.length);
+          }
+        }
+
+        if(loadedProgs) setProgs(loadedProgs);
 
         const savedSett=await idbGet(K.sett);
         if(savedSett){
@@ -977,12 +987,19 @@ export default function Vault() {
     try{
       await idbSet(K.progs,l);
       setProgs(l);
-      // Sync to Supabase in background
-      fetch('/api/programs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programs: l }),
-      }).catch(e => console.warn("Failed to sync programs to server:", e));
+      // Sync to Supabase - wait for it to complete
+      try {
+        const res = await fetch('/api/programs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ programs: l }),
+        });
+        if (!res.ok) {
+          console.error("Failed to sync to Supabase:", res.status, await res.text());
+        }
+      } catch(e) {
+        console.error("Failed to sync programs to server:", e);
+      }
     }catch(e){
       console.error("Failed to save programs:",e);
     }
