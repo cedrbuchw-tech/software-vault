@@ -1069,13 +1069,16 @@ export default function Vault() {
     if(!form.name.trim()){ping("Give it a name.","err");return;}
     setBusy(true);
     try{
-      let fileData=null,fileName=null,fileSize=null,hasFile=false;
+      let fileUrl=null,fileName=null,fileSize=null;
       if(uploadMode==="file"&&form.file){
-        if(form.file.size>4_000_000){ping("Over 4 MB — paste a link instead.","err");setBusy(false);return;}
-        fileData=await new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=fail;r.readAsDataURL(form.file);});
-        fileName=form.file.name; fileSize=form.file.size; hasFile=true;
+        if(form.file.size>50_000_000){ping("Over 50 MB — use external link.","err");setBusy(false);return;}
+        const fd=new FormData();fd.append("file",form.file);fd.append("fileName",form.file.name);fd.append("fileSize",form.file.size);
+        const res=await fetch("/api/upload",{method:"POST",body:fd});
+        if(!res.ok){const e=await res.json();ping(e.error||"Upload failed","err");setBusy(false);return;}
+        const data=await res.json();
+        fileUrl=data.url; fileName=data.fileName; fileSize=data.fileSize;
       }
-      const p={id:Date.now().toString(),name:form.name.trim(),desc:form.desc.trim(),ver:form.ver||"1.0",cat:form.cat,os:form.os||[],featured:false,likes:0,url:uploadMode==="url"?form.url.trim():null,fileData,fileName,fileSize,hasFile,coverImage:form.coverImage||null,screenshots:form.screenshots||[],date:new Date().toISOString(),dl:0};
+      const p={id:Date.now().toString(),name:form.name.trim(),desc:form.desc.trim(),ver:form.ver||"1.0",cat:form.cat,os:form.os||[],featured:false,likes:0,url:uploadMode==="url"?form.url.trim():null,fileUrl,fileName,fileSize,coverImage:form.coverImage||null,screenshots:form.screenshots||[],date:new Date().toISOString(),dl:0};
       await saveProgs([...progs,p]);
       setForm({...BLANK}); if(fileRef.current)fileRef.current.value="";
       setUploadKey(k=>k+1); ping("Added.");
@@ -1094,6 +1097,7 @@ export default function Vault() {
     const nx=progs.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p);
     try{await saveProgs(nx);}catch{setProgs(nx);}
     if(prog.url) window.open(prog.url,"_blank");
+    else if(prog.fileUrl) window.open(prog.fileUrl,"_blank");
     else if(prog.fileData){const a=document.createElement("a");a.href=prog.fileData;a.download=prog.fileName||prog.name;a.click();}
     setLoadingDl(null);
     if(detailProg?.id===prog.id) setDetailProg({...detailProg,dl:(detailProg.dl||0)+1});
@@ -1159,10 +1163,8 @@ export default function Vault() {
     featured:true,
     likes:0,
     url:hiddenSecret10.url,
-    fileData:null,
     fileName:hiddenSecret10.name,
     fileSize:null,
-    hasFile:false,
     coverImage:null,
     screenshots:[],
     date:new Date().toISOString(),
