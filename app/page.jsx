@@ -1130,14 +1130,16 @@ export default function Vault() {
     try{
       const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_email',email:adminEmailDraft})});
       const j=await r.json();
+      console.log("Email save response:", r.status, j);
       if(r.ok && j.ok){
         // refresh masked email from server
         try{const g=await fetch('/api/admin'); if(g.ok){const gj=await g.json(); if(gj.adminEmail) setAdminEmail(gj.adminEmail);} }catch{}
         setAdminEmailDraft(""); ping('Admin email updated.');
       } else {
+        console.error("Email save failed:", r.status, j);
         ping(j.error||'Could not set email','err');
       }
-    }catch(e){ping('Request failed','err');}
+    }catch(e){console.error("Email save error:", e);ping('Request failed','err');}
   };
 
   let vis=[...progs].filter(p=>{
