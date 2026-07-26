@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
-import { getAdminTokenFromReq, verifyToken } from "@/lib/admin_utils";
+import { getServiceClient } from "@/lib/vault_client";
+
+// Require the caller to be authenticated and an admin (profiles.is_admin).
+async function authUser(req) {
+  const header = req.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+  if (!token) return { error: "Missing bearer token", status: 401 };
+  const svc = getServiceClient();
+  const { data, error } = await svc.auth.getUser(token);
+  if (error || !data?.user) return { error: "Invalid or expired token", status: 401 };
+  const { data: p, error: pe } = await svc.from('profiles').select('is_admin').eq('id', data.user.id).single();
+  if (pe) return { error: 'Failed to read profile', status: 500 };
+  if (!p || !p.is_admin) return { error: 'Unauthorized', status: 401 };
+  return { user: data.user, svc };
+}
 
 export async function POST(req) {
-  const token = getAdminTokenFromReq(req);
-  if (!verifyToken(token)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const a = await authUser(req);
+  if (a.error) return NextResponse.json({ error: a.error }, { status: a.status });
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -14,13 +28,10 @@ export async function POST(req) {
     }
 
     const hasResend = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@resend.dev";
     if (!hasResend) {
       return NextResponse.json({ error: "Email service not configured" }, { status: 500 });
     }
-
-    const baseUrl = req.headers.get('x-forwarded-proto') && req.headers.get('x-forwarded-host')
-      ? `${req.headers.get('x-forwarded-proto')}://${req.headers.get('x-forwarded-host')}`
-      : `${req.headers.get('origin') || 'http://localhost:3000'}`;
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -29,7 +40,7 @@ export async function POST(req) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "noreply@resend.dev",
+        from: fromEmail,
         to: email,
         subject: "Test Email - Software Vault",
         html: `<h1>Test Email</h1><p>This is a test email from your Software Vault admin panel.</p><p>If you received this, your email is configured correctly!</p>`,

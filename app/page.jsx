@@ -1,15 +1,37 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
 
 const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
             dark:"vault_dark",lang:"vault_lang",sett:"vault_settings",found:"vault_found" };
+const partyUnlockedKey = (userId) => userId ? `vault_party_unlocked_${userId}` : null;
+const partyEnabledKey  = (userId) => userId ? `vault_party_enabled_${userId}` : null;
 const CATS  = ["All","Tools","Games","Utilities","Media","Dev","Other"];
 const OSS   = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"},{id:"web",l:"Web"}];
 const BLANK = {name:"",desc:"",ver:"1.0",cat:"Tools",url:"",file:null,os:[],coverImage:null,screenshots:[]};
 const LANGS = [{c:"en",l:"EN"},{c:"de",l:"DE"},{c:"es",l:"ES"},{c:"no",l:"NO"},
                {c:"pt",l:"PT"},{c:"ja",l:"JA"},{c:"zh",l:"ZH"},{c:"ru",l:"RU"}];
 const BLANK_DL = {name:"",desc:"",url:"",enabled:false};
+const OS_DL = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"}];
+const freshBuilds = () => ({win:{file:null,url:""},mac:{file:null,url:""},lin:{file:null,url:""}});
+const freshEditBuilds = () => ({win:{file:null,url:"",remove:false},mac:{file:null,url:"",remove:false},lin:{file:null,url:"",remove:false}});
+const hasBuilds = (p) => !!(p && p.downloads && OS_DL.some(o => p.downloads[o.id] && p.downloads[o.id].url));
+function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
+  const dls = prog.downloads || {};
+  const avail = OS_DL.filter(o => dls[o.id] && dls[o.id].url);
+  const busy = loadingDl === prog.id;
+  return (
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,...(full?{flex:1}:{width:"100%"})}}>
+      {avail.map(o => (
+        <button key={o.id} onClick={(e)=>{e.stopPropagation();onDownload(prog,o.id);}}
+          style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",padding:"9px 8px",flex:"1 1 auto",letterSpacing:.3}}>
+          {busy?tr.loading:("↓ "+o.l)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
@@ -101,7 +123,7 @@ const TR = {
   en:{h1:["Software I build","and give away."],sub:"I made this website to upload all of my small projects that I have created out of boredom for people to download and use for free. If you like what I upload, you can send me a little donation at the bottom of the page.",
     progs:"programs",dls:"downloads",feat:"featured",search:"Search programs...",platform:"Platform:",
     clear:"clear",sn:"Newest first",sp:"Most downloaded",sa:"A → Z",fdiv:"★ featured",adiv:"everything",
-    dl:"Download ↓",dl_n:"downloads",lk:"likes",e1:"Nothing here yet — check back soon.",e2:"No results.",
+    dl:"Download ↓",open:"Open ↗",dl_n:"downloads",lk:"likes",e1:"Nothing here yet — check back soon.",e2:"No results.",
     cats:["All","Tools","Games","Utilities","Media","Dev","Other"],
     adm:"admin",ap:"admin panel",vv:"← back",so:"sign out",si:"Sign in",
     sat:"Set up admin",cp:"Change password",adh:"Admin",cpb:"change password",
@@ -127,7 +149,7 @@ const TR = {
   de:{h1:["Software, die ich baue","und verschenke."],sub:"Ich habe diese Website erstellt, um all meine kleinen Projekte hochzuladen.",
     progs:"Programme",dls:"Downloads",feat:"empfohlen",search:"Programme suchen...",platform:"Plattform:",
     clear:"löschen",sn:"Neueste zuerst",sp:"Meiste Downloads",sa:"A → Z",fdiv:"★ empfohlen",adiv:"alles",
-    dl:"Herunterladen ↓",dl_n:"Downloads",lk:"Likes",e1:"Noch nichts hier.",e2:"Keine Ergebnisse.",
+    dl:"Herunterladen ↓",open:"Öffnen ↗",dl_n:"Downloads",lk:"Likes",e1:"Noch nichts hier.",e2:"Keine Ergebnisse.",
     cats:["Alle","Tools","Spiele","Dienstprogramme","Medien","Entwicklung","Sonstiges"],
     adm:"Admin",ap:"Admin-Bereich",vv:"← zurück",so:"Abmelden",si:"Anmelden",
     sat:"Admin einrichten",cp:"Passwort ändern",adh:"Admin",cpb:"Passwort ändern",
@@ -150,7 +172,7 @@ const TR = {
   es:{h1:["Software que creo","y comparto gratis."],sub:"Creé este sitio para subir todos mis pequeños proyectos.",
     progs:"programas",dls:"descargas",feat:"destacados",search:"Buscar...",platform:"Plataforma:",
     clear:"borrar",sn:"Más recientes",sp:"Más descargados",sa:"A → Z",fdiv:"★ destacados",adiv:"todo",
-    dl:"Descargar ↓",dl_n:"descargas",lk:"me gusta",e1:"Nada todavía.",e2:"Sin resultados.",
+    dl:"Descargar ↓",open:"Abrir ↗",dl_n:"descargas",lk:"me gusta",e1:"Nada todavía.",e2:"Sin resultados.",
     cats:["Todo","Herramientas","Juegos","Utilidades","Medios","Dev","Otros"],
     adm:"admin",ap:"panel admin",vv:"← volver",so:"cerrar sesión",si:"Iniciar sesión",
     sat:"Crear admin",cp:"Cambiar contraseña",adh:"Admin",cpb:"cambiar contraseña",
@@ -173,7 +195,7 @@ const TR = {
   no:{h1:["Programvare jeg lager","og gir bort gratis."],sub:"Jeg laget denne nettsiden for å laste opp alle mine små prosjekter.",
     progs:"programmer",dls:"nedlastinger",feat:"fremhevet",search:"Søk...",platform:"Plattform:",
     clear:"fjern",sn:"Nyeste først",sp:"Mest nedlastet",sa:"A → Z",fdiv:"★ fremhevet",adiv:"alt",
-    dl:"Last ned ↓",dl_n:"nedlastinger",lk:"likerklikk",e1:"Ingenting her ennå.",e2:"Ingen resultater.",
+    dl:"Last ned ↓",open:"Åpne ↗",dl_n:"nedlastinger",lk:"likerklikk",e1:"Ingenting her ennå.",e2:"Ingen resultater.",
     cats:["Alle","Verktøy","Spill","Verktøy","Medier","Dev","Annet"],
     adm:"admin",ap:"adminpanel",vv:"← tilbake",so:"logg ut",si:"Logg inn",
     sat:"Opprett admin",cp:"Endre passord",adh:"Admin",cpb:"endre passord",
@@ -196,7 +218,7 @@ const TR = {
   pt:{h1:["Software que eu crio","e distribuo de graça."],sub:"Criei este site para publicar todos os meus pequenos projetos.",
     progs:"programas",dls:"downloads",feat:"em destaque",search:"Buscar...",platform:"Plataforma:",
     clear:"limpar",sn:"Mais recentes",sp:"Mais baixados",sa:"A → Z",fdiv:"★ em destaque",adiv:"tudo",
-    dl:"Baixar ↓",dl_n:"downloads",lk:"curtidas",e1:"Nada aqui ainda.",e2:"Sem resultados.",
+    dl:"Baixar ↓",open:"Abrir ↗",dl_n:"downloads",lk:"curtidas",e1:"Nada aqui ainda.",e2:"Sem resultados.",
     cats:["Tudo","Ferramentas","Jogos","Utilitários","Mídia","Dev","Outros"],
     adm:"admin",ap:"painel admin",vv:"← voltar",so:"sair",si:"Entrar",
     sat:"Configurar admin",cp:"Alterar senha",adh:"Admin",cpb:"alterar senha",
@@ -219,7 +241,7 @@ const TR = {
   ja:{h1:["私が作るソフトウェアを","無料で公開しています。"],sub:"暇つぶしで作ったちょっとしたプロジェクトを、みんなに無料で使ってもらえるよう公開するために作ったサイトです。",
     progs:"プログラム",dls:"DL",feat:"おすすめ",search:"検索...",platform:"プラットフォーム：",
     clear:"クリア",sn:"新着順",sp:"DL数順",sa:"A → Z",fdiv:"★ おすすめ",adiv:"すべて",
-    dl:"ダウンロード ↓",dl_n:"DL",lk:"いいね",e1:"まだ何もありません。",e2:"結果がありません。",
+    dl:"ダウンロード ↓",open:"開く ↗",dl_n:"DL",lk:"いいね",e1:"まだ何もありません。",e2:"結果がありません。",
     cats:["すべて","ツール","ゲーム","ユーティリティ","メディア","開発","その他"],
     adm:"管理者",ap:"管理パネル",vv:"← 戻る",so:"ログアウト",si:"サインイン",
     sat:"管理者を設定",cp:"パスワード変更",adh:"管理者",cpb:"パスワード変更",
@@ -242,7 +264,7 @@ const TR = {
   zh:{h1:["我开发的软件","全部免费分享。"],sub:"我建立这个网站，是为了分享我因无聊而创作的各种小项目。",
     progs:"程序",dls:"下载",feat:"精选",search:"搜索...",platform:"平台：",
     clear:"清除",sn:"最新",sp:"最多下载",sa:"A → Z",fdiv:"★ 精选",adiv:"全部",
-    dl:"下载 ↓",dl_n:"下载",lk:"点赞",e1:"暂时没有内容。",e2:"没有搜索结果。",
+    dl:"下载 ↓",open:"打开 ↗",dl_n:"下载",lk:"点赞",e1:"暂时没有内容。",e2:"没有搜索结果。",
     cats:["全部","工具","游戏","实用工具","媒体","开发","其他"],
     adm:"管理员",ap:"管理面板",vv:"← 返回",so:"退出",si:"登录",
     sat:"设置管理员",cp:"修改密码",adh:"管理员",cpb:"修改密码",
@@ -265,7 +287,7 @@ const TR = {
   ru:{h1:["Программы, которые я делаю","и раздаю бесплатно."],sub:"Я создал этот сайт, чтобы делиться небольшими проектами от скуки.",
     progs:"программы",dls:"скачивания",feat:"избранное",search:"Поиск...",platform:"Платформа:",
     clear:"сбросить",sn:"Сначала новые",sp:"По скачиваниям",sa:"А → Я",fdiv:"★ избранное",adiv:"все",
-    dl:"Скачать ↓",dl_n:"скач.",lk:"лайки",e1:"Пока ничего.",e2:"Ничего не найдено.",
+    dl:"Скачать ↓",open:"Открыть ↗",dl_n:"скач.",lk:"лайки",e1:"Пока ничего.",e2:"Ничего не найдено.",
     cats:["Все","Инструменты","Игры","Утилиты","Медиа","Разработка","Прочее"],
     adm:"Админ",ap:"панель admin",vv:"← назад",so:"выйти",si:"Войти",
     sat:"Настроить админа",cp:"Сменить пароль",adh:"Админ",cpb:"сменить пароль",
@@ -377,8 +399,8 @@ function SecretDownloadCard({dl,accentColor,textColor,bgColor,borderColor}) {
           onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.filter="drop-shadow(2px 2px 0 rgba(0,0,0,.45))";}}
           onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter="drop-shadow(1px 1px 0 rgba(0,0,0,.4))";}}
           onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter="drop-shadow(3px 3px 0 rgba(0,0,0,.5))";}}
-        >
-          DOWNLOAD ↓
+>
+          Open ↗
         </button>
       )}
     </div>
@@ -421,7 +443,7 @@ function ImageUploadField({label,tip,single,images,onChange,onRemove,th,lbl,maxC
   );
 }
 
-function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr}) {
+function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLibrary,onToggleLibrary,lt}) {
   const [slide,setSlide]=useState(0);
   const [heartAnim,setHeartAnim]=useState(false);
   const dlPress=usePressStyle(th);
@@ -465,9 +487,10 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr}) {
             <button onClick={doLike} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",border:`2px solid ${liked?"#e03d0c":th.div}`,background:liked?"#e03d0c":th.card,color:liked?th.card:th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,flexShrink:0,...dlPress.btnStyle,filter:liked?"none":dlPress.btnStyle.filter,transition:"background .15s, border-color .15s, filter 0.1s, transform 0.1s"}} {...dlPress.handlers}>
               <span style={{fontSize:16,animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>{fmt.n(prog.likes||0)}
             </button>
-            <button onClick={()=>onDownload(prog)} style={{flex:1,padding:"10px",background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
-              {loadingDl===prog.id?tr.loading:tr.dl}
-            </button>
+            {onToggleLibrary&&<button onClick={()=>onToggleLibrary(prog.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",border:`2px solid ${inLibrary?"#16a34a":th.div}`,background:inLibrary?"#16a34a":th.card,color:inLibrary?th.card:th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,flexShrink:0}}>{inLibrary?(lt?.saved||"✓ Saved"):(lt?.save||"+ Save")}</button>}
+            {hasBuilds(prog) ? (<DownloadButtons prog={prog} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr} full/>) : (<button onClick={()=>onDownload(prog)} style={{flex:1,padding:"10px",background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
+              {loadingDl===prog.id?tr.loading:((prog.os||[]).includes("web")?tr.open:tr.dl)}
+            </button>)}
           </div>
         </div>
       </div>
@@ -475,7 +498,7 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr}) {
   );
 }
 
-function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMenu,onFeaturedClick,loadingDl,th,tr,customDlBtn,corruptionLevel}) {
+function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMenu,onFeaturedClick,loadingDl,th,tr,customDlBtn,corruptionLevel,inLibrary,onToggleLibrary,lt}) {
   const [hov,setHov]=useState(false);
   const [heartAnim,setHeartAnim]=useState(false);
   const titleHoldTimer=useRef(null);
@@ -567,6 +590,7 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
           <span style={{fontSize:18,lineHeight:1,display:"inline-block",animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>
           <span style={{fontWeight:500}}>{(p.likes||0)>0?`${fmt.n(p.likes||0)} ${tr.lk}`:tr.lk}</span>
         </button>
+        {onToggleLibrary&&<button onClick={(e)=>{e.stopPropagation();onToggleLibrary(p.id);}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"8px 0",marginBottom:8,border:`2px solid ${inLibrary?"#16a34a":th.div}`,background:inLibrary?"#16a34a":"transparent",color:inLibrary?th.card:th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,transition:"background .12s, border-color .12s"}}>{inLibrary?(lt?.saved||"✓ Saved"):(lt?.save||"+ Save")}</button>}
         <div style={{paddingTop:10,borderTop:`1px solid ${th.div}`}}>
           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,marginBottom:8,lineHeight:1.55}}>
             {fmt.d(p.date)}{p.fileSize?` · ${fmt.b(p.fileSize)}`:""}<br/>
@@ -574,9 +598,9 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
             {hasImages&&<span onClick={()=>onDetail(p)} style={{marginLeft:8,color:"#e03d0c",cursor:"pointer",textDecoration:"underline",fontSize:10}}>{(p.screenshots||[]).length+1} photo{((p.screenshots||[]).length+1)!==1?"s":""}</span>}
           </div>
           {customDlBtn ?? (
-            <button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
-              {loadingDl===p.id?tr.loading:tr.dl}
-            </button>
+            hasBuilds(p) ? (<DownloadButtons prog={p} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr}/>) : (<button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
+              {loadingDl===p.id?tr.loading:((p.os||[]).includes("web")?tr.open:tr.dl)}
+            </button>)
           )}
         </div>
       </div>
@@ -668,6 +692,65 @@ function SecretLock({onClose}) {
 export default function Vault() {
   const [progs,setProgs]           = useState([]);
   const [likes,setLikes]           = useState([]);
+  const [library,setLibraryState] = useState([]);
+  const [myAppsOnly,setMyAppsOnly] = useState(false);
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) { setLikes([]); setLibraryState([]); return; }
+    let active = true;
+    fetchMyLikes(user.id).then((ids) => { if (active) setLikes(ids); });
+    fetchMyLibrary(user.id).then((ids) => { if (active) setLibraryState(ids); });
+    return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setPartyUnlocked(false);
+      setPartyMode(false);
+      setPartySecret(false);
+      return;
+    }
+    const unlocked = ls.get(partyUnlockedKey(user.id)) === "1";
+    const enabled = ls.get(partyEnabledKey(user.id)) === "1";
+    setPartyUnlocked(unlocked);
+    if (unlocked && enabled) {
+      setPartyMode(true);
+      setPartySecret(true);
+    } else {
+      setPartyMode(false);
+      setPartySecret(false);
+    }
+  }, [user]);
+
+  const setUserPartyEnabled = (enabled) => {
+    if (!user) return;
+    setPartyUnlocked(true);
+    setPartyMode(enabled);
+    setPartySecret(enabled);
+    ls.set(partyUnlockedKey(user.id), "1");
+    ls.set(partyEnabledKey(user.id), enabled ? "1" : "0");
+    ping(enabled ? "Party mode enabled" : "Party mode disabled", "ok");
+  };
+
+  // When auth state changes, re-check admin rights for the signed-in user.
+  useEffect(() => {
+    (async () => {
+      if (!user) { setIsAdmin(false); setPage("home"); return; }
+      try {
+        const sess = await supabase.auth.getSession();
+        const token = sess?.data?.session?.access_token || null;
+        if (!token) return;
+        const r = await fetch('/api/admin', { headers: { Authorization: `Bearer ${token}` } });
+        if (r.ok) {
+          const j = await r.json();
+          setIsAdmin(!!j.authed);
+          setHasAdmin(!!j.exists);
+          if (j.authed) setPage("admin");
+          if (j.adminEmail) setAdminEmail(j.adminEmail);
+        }
+      } catch (e) { /* ignore */ }
+    })();
+  }, [user]);
   const [sett,setSett]             = useState({ann:{text:"",type:"info",visible:false},support:{url:"",msg:"",visible:false},heroSub:"",secretDownloads:[],twoFactorEnabled:false});
   const [ready,setReady]           = useState(false);
   const [isDark,setIsDark]         = useState(false);
@@ -684,8 +767,13 @@ export default function Vault() {
   const [osFilter,setOsFilter]     = useState([]);
   const [pw,setPw]                 = useState("");
   const [pw2,setPw2]               = useState("");
+  const [curPw,setCurPw]           = useState("");
+  const [resetStep,setResetStep]   = useState("request");
+  const [resetCode,setResetCode]   = useState("");
+  const [resetMsg,setResetMsg]     = useState("");
+  const [resetErr,setResetErr]     = useState("");
   const [pwErr,setPwErr]           = useState("");
-  const [form,setForm]             = useState({...BLANK});
+  const [form,setForm]             = useState({...BLANK,builds:freshBuilds()});
   const [uploadMode,setUploadMode] = useState("url");
   const [editId,setEditId]         = useState(null);
   const [editForm,setEditForm]     = useState({...BLANK});
@@ -716,6 +804,9 @@ export default function Vault() {
   const [chargeProgress,setChargeProgress] = useState(0);
 
   const [partyMode,setPartyMode]   = useState(false);
+  const [partySecret,setPartySecret] = useState(false);
+  const [partyConfirm,setPartyConfirm] = useState(false);
+  const [partyUnlocked,setPartyUnlocked] = useState(false);
   const [foundSecrets,setFoundSecrets] = useState([]);
   const [starAnim,setStarAnim]     = useState(null);
   const [allFoundModal,setAllFoundModal] = useState(false);
@@ -757,6 +848,7 @@ export default function Vault() {
   const featuredTimerRef = useRef(null);
 
   const tr=TR[lang]||TR.en, th=isDark?THEMES.dark:THEMES.light;
+  const lt = libT(lang);
   const gridKey=`${cat}|${sort}|${osFilter.join(",")}|${search}`;
   const ping=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
 
@@ -786,7 +878,10 @@ export default function Vault() {
       try {
         // check server for admin existence / auth
         try {
-          const r = await fetch('/api/admin');
+          const sess = await supabase.auth.getSession();
+          const token = sess?.data?.session?.access_token || null;
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          const r = await fetch('/api/admin', { headers });
           if (r.ok) {
             const j = await r.json();
             setHasAdmin(!!j.exists);
@@ -804,7 +899,6 @@ export default function Vault() {
             const j = await r.json();
             loadedProgs = j.programs || [];
             supabaseLoaded = true;
-            console.log("Loaded programs from Supabase:", loadedProgs.length);
           }
         } catch (e) {
           console.warn("Could not load from Supabase:", e);
@@ -815,7 +909,6 @@ export default function Vault() {
           const idbProgs = await idbGet(K.progs);
           if (idbProgs && idbProgs.length > 0) {
             loadedProgs = idbProgs;
-            console.log("Loaded programs from IndexedDB:", idbProgs.length);
           }
         }
 
@@ -834,7 +927,7 @@ export default function Vault() {
         if(dk!==null){ setIsDark(JSON.parse(dk)); }
         else { setIsDark(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false); }
         const lg=ls.get(K.lang); if(lg) setLang(lg.replace(/"/g,""));
-        const lk=ls.get(K.likes); if(lk) setLikes(JSON.parse(lk));
+        /* likes now load per-account from the DB — see the useAuth effect */
         const fd=ls.get(K.found); if(fd){const f=JSON.parse(fd);foundRef.current=f;setFoundSecrets(f);}
       } catch(e){ console.error("Storage load error:",e); }
       setReady(true);
@@ -853,6 +946,17 @@ export default function Vault() {
     }
   },[foundSecrets, hideCorruption]);
 
+  useEffect(()=>{
+    const secretStates=[secret1,secret2,secret3,secret4,secret5,secret6,secret7,secret8,secret9,secret10,secret11,secret12];
+    secretStates.forEach((val,idx)=>{
+      const cls = `secret-${idx+1}`;
+      if(val) document.documentElement.classList.add(cls);
+      else document.documentElement.classList.remove(cls);
+    });
+    if(partySecret) document.documentElement.classList.add('party-active');
+    else document.documentElement.classList.remove('party-active');
+  },[secret1,secret2,secret3,secret4,secret5,secret6,secret7,secret8,secret9,secret10,secret11,secret12,partySecret]);
+
   const markSecretFound=async(n)=>{
     if(foundRef.current.includes(n)) return;
     const nf=[...foundRef.current,n];
@@ -860,6 +964,25 @@ export default function Vault() {
     setStarAnim(n); setTimeout(()=>setStarAnim(null),1800);
     await Promise.resolve(ls.set(K.found,JSON.stringify(nf)));
     if(nf.length===12) setTimeout(()=>setAllFoundModal(true),2600);
+  };
+
+  const resetCorruption = async ()=>{
+    foundRef.current = [];
+    setFoundSecrets([]);
+    setHideCorruption(false);
+    setGlitchFeatureActive(false);
+    setPostGlitch(false);
+    setFinalSurge(false);
+    setPartyMode(false);
+    setPartySecret(false);
+    setPartyConfirm(false);
+    setStarAnim(null);
+    setChargeProgress(0);
+    setSecret1(false); setSecret2(false); setSecret3(false); setSecret4(false);
+    setSecret5(false); setSecret6(false); setSecret7(false); setSecret8(false);
+    setSecret9(false); setSecret10(false); setSecret11(false); setSecret12(false);
+    await Promise.resolve(ls.set(K.found,JSON.stringify([])));
+    ping("Corruption reset. All secrets are cleared.");
   };
 
   useEffect(()=>{
@@ -975,9 +1098,7 @@ export default function Vault() {
     clearTimeout(footerTimerRef.current);
     if(footerClickRef.current>=5){
       footerClickRef.current=0;
-      setPartyMode(true); ping("✦ party mode","ok");
-      clearTimeout(partyTimerRef.current);
-      partyTimerRef.current=setTimeout(()=>setPartyMode(false),4500);
+      setPartyConfirm(true);
     } else footerTimerRef.current=setTimeout(()=>{footerClickRef.current=0;},1200);
   };
 
@@ -1034,7 +1155,7 @@ export default function Vault() {
 
   const closeModal=()=>{
     setModal(null);
-    setPw("");
+    setPw("");setCurPw("");
     setPw2("");
     setPwErr("");
     setLoginOtp("");
@@ -1045,42 +1166,30 @@ export default function Vault() {
 
   const login=async()=>{
     setPwErr("");
-    try{
-      const payload = { action:'login', pw };
-      if (loginRequires2fa) payload.otp = loginOtp;
-      const r = await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const j = await r.json();
-      if (j.requires2fa) {
-        setLoginRequires2fa(true);
-        setLoginMessage(j.message || `Enter the 2FA code sent to ${adminEmail || 'your email'}.`);
-        return;
-      }
-      if(r.ok && j.ok){ setIsAdmin(true); setPage('admin'); setAdminTab('programs'); setModal(null); setPw(''); setLoginOtp(''); setLoginRequires2fa(false); setLoginMessage(''); setHasAdmin(true); ping("Signed in."); }
-      else setPwErr(j.error||"Sign in failed");
-    }catch(e){ setPwErr("Sign in failed"); }
+    // Admins now sign in via Supabase auth; open the sign-in modal.
+    openAuthModal();
+    ping('Sign in with your account to access admin (if you are an admin).');
   };
   const setupAdmin=async()=>{
     setPwErr("");
-    if(pw.length<6){setPwErr("At least 6 characters.");return;}
-    if(pw!==pw2){setPwErr("Those don't match.");return;}
-    if(!setupEmail||!setupEmail.includes("@")){setPwErr("A valid email is required.");return;}
     try{
-      const r = await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'setup',pw,email:setupEmail})});
+      const sess = await supabase.auth.getSession();
+      const token = sess?.data?.session?.access_token;
+      if(!token){ setPwErr("Sign in first"); openAuthModal(); return; }
+      const r = await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json', Authorization: `Bearer ${token}`},body:JSON.stringify({action:'setup'})});
       const j = await r.json();
       if(r.ok && j.ok){ setHasAdmin(true); setIsAdmin(true); setPage('admin'); setAdminTab('programs'); setModal(null); setPw(''); setPw2(''); setSetupEmail(''); ping("You're in."); }
       else setPwErr(j.error||"Couldn't set up admin.");
     }catch(e){ setPwErr("Couldn't set up admin."); }
   };
   const changePw=async()=>{
-    setPwErr("");
-    if(pw.length<6){setPwErr("At least 6 characters.");return;}
-    if(pw!==pw2){setPwErr("Those don't match.");return;}
-    try{
-      const r = await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'change',newPw:pw})});
-      const j = await r.json();
-      if(r.ok && j.ok){ setModal(null); setPw(''); setPw2(''); ping('Password updated.'); }
-      else setPwErr(j.error||'Could not change password');
-    }catch(e){ setPwErr('Could not change password'); }
+    ping('Password management moved to Supabase auth. Use your account settings.','err');
+  };
+  const requestReset=async()=>{
+    ping('Password reset moved to Supabase auth. Use your account recovery flow.','err');
+  };
+  const confirmReset=async()=>{
+    ping('Password reset moved to Supabase auth. Use your account recovery flow.','err');
   };
 
   const processCoverImage=async(file)=>{try{return await compressImage(file,900,0.80);}catch{return null;}};
@@ -1090,72 +1199,112 @@ export default function Vault() {
     if(!form.name.trim()){ping("Give it a name.","err");return;}
     setBusy(true);
     try{
-      let fileUrl=null,fileName=null,fileSize=null;
-      if(uploadMode==="file"&&form.file){
-        if(form.file.size>50_000_000){ping("Over 50 MB — use external link.","err");setBusy(false);return;}
-        const fd=new FormData();fd.append("file",form.file);fd.append("fileName",form.file.name);fd.append("fileSize",form.file.size);
-        const res=await fetch("/api/upload",{method:"POST",body:fd});
-        if(!res.ok){const e=await res.json();ping(e.error||"Upload failed","err");setBusy(false);return;}
-        const data=await res.json();
-        fileUrl=data.url; fileName=data.fileName; fileSize=data.fileSize;
+      const downloads={};
+      for(const o of ["win","mac","lin"]){
+        const b=(form.builds||{})[o]||{};
+        if(b.file){
+          if(b.file.size>50_000_000){ping(o+": over 50 MB — paste a URL instead.","err");setBusy(false);return;}
+          const fd=new FormData();fd.append("file",b.file);fd.append("fileName",b.file.name);fd.append("fileSize",b.file.size);
+          const res=await fetch("/api/upload",{method:"POST",body:fd});
+          if(!res.ok){const e=await res.json().catch(()=>({}));ping(e.error||(o+": upload failed"),"err");setBusy(false);return;}
+          const data=await res.json();
+          downloads[o]={url:data.url,name:data.fileName,size:data.fileSize};
+        }else if((b.url||"").trim()){
+          const u=b.url.trim();downloads[o]={url:u,name:(u.split("/").pop()||form.name.trim()),size:null};
+        }
       }
-      const p={id:Date.now().toString(),name:form.name.trim(),desc:form.desc.trim(),ver:form.ver||"1.0",cat:form.cat,os:form.os||[],featured:false,likes:0,url:uploadMode==="url"?form.url.trim():null,fileUrl,fileName,fileSize,coverImage:form.coverImage||null,screenshots:form.screenshots||[],date:new Date().toISOString(),dl:0};
+      const webUrl=(form.url||"").trim();
+      const osTags=Object.keys(downloads);if(webUrl)osTags.push("web");
+      const p={id:Date.now().toString(),name:form.name.trim(),desc:form.desc.trim(),ver:form.ver||"1.0",cat:form.cat,os:osTags,featured:false,likes:0,url:webUrl||null,downloads,fileUrl:null,fileName:null,fileSize:null,coverImage:form.coverImage||null,screenshots:form.screenshots||[],date:new Date().toISOString(),dl:0};
       await saveProgs([...progs,p]);
-      setForm({...BLANK}); if(fileRef.current)fileRef.current.value="";
+      setForm({...BLANK,builds:freshBuilds()});
       setUploadKey(k=>k+1); ping("Added.");
     }catch{ping("Something went wrong.","err");}
     setBusy(false);
   };
   const saveEdit=async()=>{
     if(!editForm.name.trim()){ping("Name required.","err");return;}
-    const u=progs.map(p=>p.id===editId?{...p,name:editForm.name.trim(),desc:editForm.desc.trim(),ver:editForm.ver,cat:editForm.cat,os:editForm.os||[],url:editForm.url||p.url,coverImage:editForm.coverImage!==undefined?editForm.coverImage:p.coverImage,screenshots:editForm.screenshots||p.screenshots||[]}:p);
-    await saveProgs(u); setModal(null); setEditId(null); ping("Saved.");
+    setBusy(true);
+    try{
+      const downloads={...(editForm.downloads||{})};
+      for(const o of ["win","mac","lin"]){
+        const b=(editForm.builds||{})[o]||{};
+        if(b.remove){ delete downloads[o]; continue; }
+        if(b.file){
+          if(b.file.size>50_000_000){ping(o+": over 50 MB — paste a URL instead.","err");return;}
+          const fd=new FormData();fd.append("file",b.file);fd.append("fileName",b.file.name);fd.append("fileSize",b.file.size);
+          const res=await fetch("/api/upload",{method:"POST",body:fd});
+          if(!res.ok){const e=await res.json().catch(()=>({}));ping(e.error||(o+": upload failed"),"err");return;}
+          const data=await res.json();
+          downloads[o]={url:data.url,name:data.fileName,size:data.fileSize};
+        }else if((b.url||"").trim()){
+          const u=b.url.trim();downloads[o]={url:u,name:(u.split("/").pop()||editForm.name.trim()),size:null};
+        }
+      }
+      const hasUrl=!!(editForm.url||"").trim();
+      const dlKeys=Object.keys(downloads);
+      let os = dlKeys.length>0 ? [...dlKeys] : (editForm.os||[]).filter(x=>x!=="web");
+      if(hasUrl && !os.includes("web")) os.push("web");
+      const u=progs.map(p=>p.id===editId?{...p,name:editForm.name.trim(),desc:editForm.desc.trim(),ver:editForm.ver,cat:editForm.cat,os,url:hasUrl?editForm.url.trim():null,downloads,coverImage:editForm.coverImage!==undefined?editForm.coverImage:p.coverImage,screenshots:editForm.screenshots||p.screenshots||[]}:p);
+      await saveProgs(u); setModal(null); setEditId(null); ping("Saved.");
+    }catch(e){ ping("Save failed.","err"); }
+    finally{ setBusy(false); }
   };
   const toggleFeatured=async id=>{const u=progs.map(p=>p.id===id?{...p,featured:!p.featured}:p);await saveProgs(u);const updated=u.find(p=>p.id===id);ping(updated?.featured?"Pinned.":"Unpinned.");};
   const remove=async id=>{await saveProgs(progs.filter(p=>p.id!==id));setDelId(null);ping("Removed.");};
-  const download=async prog=>{
+  const download=async(prog,target=null)=>{
     setLoadingDl(prog.id);
-    const nx=progs.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p);
-    try{await saveProgs(nx);}catch{setProgs(nx);}
-    if(prog.url) window.open(prog.url,"_blank");
+    // Count it via the tiny dedicated endpoint. The old path POSTed the ENTIRE
+    // programs array back, which raced with other visitors and required write
+    // access to every row (see /api/downloads + MIGRATION_DOWNLOAD_COUNTER.sql).
+    setProgs(ps=>ps.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p));
+    fetch("/api/downloads",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({programId:prog.id})}).catch(()=>{});
+    const t=target&&prog.downloads?prog.downloads[target]:null;
+    if(t&&t.url){const a=document.createElement("a");a.href=`/api/download?url=${encodeURIComponent(t.url)}&name=${encodeURIComponent(t.name||prog.name)}`;a.download=t.name||prog.name;a.click();}
+    else if((prog.os||[]).includes("web")) window.open(prog.url||"https://softwarevault.dev","_blank");
+    else if(prog.url) window.open(prog.url,"_blank");
     else if(prog.fileUrl){const a=document.createElement("a");a.href=`/api/download?url=${encodeURIComponent(prog.fileUrl)}&name=${encodeURIComponent(prog.fileName||prog.name)}`;a.download=prog.fileName||prog.name;a.click();}
     else if(prog.fileData){const a=document.createElement("a");a.href=prog.fileData;a.download=prog.fileName||prog.name;a.click();}
     setLoadingDl(null);
     if(detailProg?.id===prog.id) setDetailProg({...detailProg,dl:(detailProg.dl||0)+1});
   };
   const handleLike=async id=>{
+    if(!user){ ping(likeHint(lang),"err"); openAuthModal(); return; }
     const had=likes.includes(id);
     const nl=had?likes.filter(x=>x!==id):[...likes,id];
     const np=progs.map(p=>p.id===id?{...p,likes:Math.max(0,(p.likes||0)+(had?-1:1))}:p);
-    setLikes(nl);
-    try{ls.set(K.likes,JSON.stringify(nl));await saveProgs(np);}catch{setProgs(np);}
+    setLikes(nl); setProgs(np);
     if(detailProg?.id===id) setDetailProg(np.find(p=>p.id===id));
+    try{ await setLike(user.id,id,!had); }
+    catch{ setLikes(likes); setProgs(progs); if(detailProg?.id===id) setDetailProg(progs.find(p=>p.id===id)); ping("Couldn't save your like.","err"); }
+  };
+
+  const handleToggleLibrary=async id=>{
+    if(!user){ ping(lt.hint,"err"); openAuthModal(); return; }
+    const had=library.includes(id);
+    const nl=had?library.filter(x=>x!==id):[...library,id];
+    setLibraryState(nl);
+    try{ await setLibrary(user.id,id,!had); ping(had?"Removed from My Apps.":"Saved to My Apps."); }
+    catch{ setLibraryState(library); ping("Couldn't update My Apps.","err"); }
   };
   const saveAnn=async()=>{const s={...sett,ann:{...annDraft,visible:true}};await saveSett(s);ping("Saved.");};
   const clearAnn=async()=>{const s={...sett,ann:{text:"",type:"info",visible:false}};await saveSett(s);setAnnDraft({text:"",type:"info"});ping("Cleared.");};
   const saveSupport=async()=>{const s={...sett,support:{...ppDraft}};await saveSett(s);ping("Saved.");};
   const saveTwoFactorSetting=async()=>{
-    try{
-      const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_2fa',enabled:twoFactorEnabledDraft})});
-      const j=await r.json();
-      if(r.ok && j.ok){
-        const s={...sett,twoFactorEnabled:twoFactorEnabledDraft};
-        await saveSett(s);
-        ping(twoFactorEnabledDraft?"2FA enabled.":"2FA disabled.");
-      } else {
-        ping(j.error||'Could not save 2FA setting','err');
-      }
-    }catch(e){ping('Request failed','err');}
+    ping('Two-factor settings are managed via Supabase auth. This action is unsupported here.','err');
   };
   const saveAdminEmail=async()=>{
     if(!adminEmailDraft||!adminEmailDraft.includes("@")){ping("Enter a valid email.","err");return;}
     try{
-      const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_email',email:adminEmailDraft})});
-      const j=await r.json();
-      console.log("Email save response:", r.status, j);
+      const sess = await supabase.auth.getSession();
+      const token = sess?.data?.session?.access_token || null;
+      if(!token){ ping('Sign in as admin to set the admin email.','err'); openAuthModal(); return; }
+      const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json', Authorization: `Bearer ${token}`},body:JSON.stringify({action:'set_email',email:adminEmailDraft})});
+      const j = await r.json();
       if(r.ok && j.ok){
         // refresh masked email from server
-        try{const g=await fetch('/api/admin'); if(g.ok){const gj=await g.json(); if(gj.adminEmail) setAdminEmail(gj.adminEmail);} }catch{}
+        try{const g=await fetch('/api/admin',{headers:{Authorization:`Bearer ${token}`}}); if(g.ok){const gj=await g.json(); if(gj.adminEmail) setAdminEmail(gj.adminEmail);} }catch{}
         setAdminEmailDraft(""); ping('Admin email updated.');
       } else {
         console.error("Email save failed:", r.status, j);
@@ -1167,18 +1316,22 @@ export default function Vault() {
     if(!adminEmailDraft){ping("Enter an email address first.","err");return;}
     try{
       setBusy(true);
-      const r=await fetch('/api/test-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:adminEmailDraft})});
+      const sess = await supabase.auth.getSession();
+      const token = sess?.data?.session?.access_token || null;
+      if(!token){ ping('Sign in as admin to send test emails.','err'); setBusy(false); openAuthModal(); return; }
+      const r=await fetch('/api/test-email',{method:'POST',headers:{'Content-Type':'application/json', Authorization: `Bearer ${token}`},body:JSON.stringify({email:adminEmailDraft})});
       const j=await r.json();
-      if(r.ok && j.ok){ping("Test email sent! Check your inbox.");setBusy(false);}
-      else{ping(j.error||'Failed to send test email','err');setBusy(false);}
-    }catch(e){ping('Request failed','err');setBusy(false);}
+      if(r.ok && j.ok){ ping('Test email sent.'); }
+      else{ ping(j.error||'Could not send test email','err'); }
+    }catch(e){ console.error('Test email error:', e); ping('Request failed','err'); }
+    finally{ setBusy(false); }
   };
 
   let vis=[...progs].filter(p=>{
     const mc=cat==="All"||p.cat===cat;
     const ms=!search||p.name.toLowerCase().includes(search.toLowerCase())||(p.desc||"").toLowerCase().includes(search.toLowerCase());
     const mo=osFilter.length===0||osFilter.some(o=>(p.os||[]).includes(o));
-    return mc&&ms&&mo;
+    const ml=!myAppsOnly||library.includes(p.id); return mc&&ms&&mo&&ml;
   });
   if(sort==="popular") vis.sort((a,b)=>(b.dl||0)-(a.dl||0));
   else if(sort==="az") vis.sort((a,b)=>a.name.localeCompare(b.name));
@@ -1213,6 +1366,7 @@ export default function Vault() {
 
   const inp={width:"100%",padding:"10px 12px",border:th.bdr,background:th.inputBg,color:th.blk,fontFamily:"'IBM Plex Mono',monospace",fontSize:13,outline:"none",boxSizing:"border-box",transition:"all .2s ease"};
   const lbl={fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,display:"block",marginBottom:6};
+  const baseBtn=(active=false)=>({border:th.bdr,background:active?th.blk:th.card,color:active?th.card:th.blk,padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,cursor:"pointer",filter:`drop-shadow(4px 4px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"all .18s ease",fontWeight:active?600:400});
 
   const CardWithSecrets=({p,...rest})=>(
     <ProgramCard p={p} {...rest} corruptionLevel={corruptionLevel} onTitleHold={(prog)=>{ setS7CardName(prog.name); setSecret7(true); markSecretFound(7); setTimeout(()=>setSecret7(false),14000); }} onContextMenu={(prog)=>{ setSecret11(true); markSecretFound(11); setTimeout(()=>setSecret11(false),12000); }} onFeaturedClick={handleFeaturedClick} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
@@ -1325,7 +1479,7 @@ export default function Vault() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap');
         :root { color-scheme: ${isDark?"dark":"light"} !important; }
-        #sv-root { filter: none !important; background-color: ${th.bg} !important; color: ${th.blk} !important; }
+        #sv-root { background-color: ${th.bg} !important; color: ${th.blk} !important; }
         *{box-sizing:border-box;margin:0;padding:0}
         ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#aaa}
         @keyframes heroReveal{from{transform:translateY(108%);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -1334,6 +1488,7 @@ export default function Vault() {
         @keyframes heartPop{0%{transform:scale(1)}30%{transform:scale(1.55)}65%{transform:scale(.88)}100%{transform:scale(1)}}
         @keyframes statSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
         @keyframes annSlide{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes annMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
         @keyframes modalIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes emptyPulse{0%,100%{opacity:.5}50%{opacity:1}}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
@@ -1359,6 +1514,11 @@ export default function Vault() {
         @keyframes newPulse{0%,100%{opacity:1}50%{opacity:.6}}
         @keyframes themeFlash{0%{opacity:1}25%{opacity:.1}50%{opacity:.9}75%{opacity:.05}100%{opacity:1}}
         @keyframes themeGlitch{0%,100%{transform:none}20%{transform:translate(3px,-2px)}40%{transform:translate(-3px,1px)}60%{transform:translate(2px,3px)}80%{transform:translate(-1px,-3px)}}
+        @keyframes buttonGlow{0%{box-shadow:0 4px 12px rgba(0,0,0,0.08)}50%{box-shadow:0 8px 18px rgba(0,0,0,0.16)}100%{box-shadow:0 4px 12px rgba(0,0,0,0.08)}}
+        .btn-animated{transition:transform .18s ease,box-shadow .18s ease,background .18s ease,color .18s ease;}
+        .btn-animated:hover{transform:translateY(-1px) scale(1.01);box-shadow:0 10px 24px rgba(0,0,0,.16);}
+        .btn-animated:active{transform:translateY(0) scale(.98);}
+        .btn-animated.glow{animation:buttonGlow 3s ease infinite;}
         /* Corruption overlay visuals are now scoped to html.corrupt-lvl-* in global.css */
         /* Hero chromatic/glitch effect when corruption levels active */
         html.corrupt-lvl-4 .hero-title span,
@@ -1406,10 +1566,12 @@ export default function Vault() {
 
       {ann.visible&&ann.text&&(
         <div style={{background:annC.bg,borderBottom:`2px solid ${annC.b}`,padding:"11px 40px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:annC.t,textAlign:"center",lineHeight:1.6,animation:"annSlide .35s cubic-bezier(.22,1,.36,1) both",overflow:"hidden",whiteSpace:"nowrap",position:"relative"}}>
-          <div style={{display:"inline-flex",animation:ann.text.length>60?`annMarquee ${Math.max(20, ann.text.length*0.12)}s linear infinite`:"none"}}>
-            <span style={{paddingRight:100}}>{ann.text}</span>
-            <span style={{paddingRight:100}}>{ann.text}</span>
-          </div>
+          {ann.text.length>60?(
+            <div style={{display:"inline-flex",animation:`annMarquee ${Math.max(20, ann.text.length*0.12)}s linear infinite`}}>
+              <span style={{paddingRight:100}}>{ann.text}</span>
+              <span style={{paddingRight:100}}>{ann.text}</span>
+            </div>
+          ):(<span>{ann.text}</span>)}
         </div>
       )}
 
@@ -1445,23 +1607,14 @@ export default function Vault() {
           <select value={lang} onChange={e=>setLang(e.target.value)} style={{padding:"5px 8px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:th.inputBg,color:th.blk,cursor:"pointer",filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")"}}>
             {LANGS.map(l=><option key={l.c} value={l.c}>{l.l}</option>)}
           </select>
-          <button onClick={handleThemeToggle} style={{width:34,height:34,border:th.bdr,background:th.card,color:th.blk,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")",transition:"filter 0.1s, transform 0.1s"}}
+          <button onClick={handleThemeToggle} style={{width:34,height:34,border:th.bdr,background:th.card,color:th.blk,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",filter:`drop-shadow(4px 4px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s, transform 0.1s"}}
             onMouseEnter={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter="drop-shadow(3px 3px 0 "+th.sh2.split(" ").slice(3).join(" ")+")";}}
             onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.filter="drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")";}}
             onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter="drop-shadow(1px 1px 0 "+th.sh2.split(" ").slice(3).join(" ")+")";}}
             onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}>
             {isDark?"☀":"◑"}
           </button>
-          {isAdmin?(
-            <>
-              <Btn sm th={th} onClick={()=>setPage(p=>p==="home"?"admin":"home")}>{page==="admin"?tr.vv:tr.ap}</Btn>
-              <Btn sm v="danger" th={th} onClick={()=>{setIsAdmin(false);setPage("home");ping("Signed out.");}}>{tr.so}</Btn>
-            </>
-          ):(
-            <Btn sm th={th} onClick={()=>{setModal(hasAdmin?"login":"setup");setPwErr("");setPw("");setPw2("");}}>
-              {tr.adm} →
-            </Btn>
-          )}
+          <AuthButton lang={lang} th={th} partyUnlocked={partyUnlocked} partyMode={partyMode} onTogglePartyMode={setUserPartyEnabled} />
         </div>
       </header>
 
@@ -1490,34 +1643,42 @@ export default function Vault() {
                 </div>
               )}
               {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
-              {foundSecrets.length >= 3 && (
-              <div style={{marginTop:18}}>
-                <button className="btn-animated" onClick={()=>setHideCorruption(false)} style={{border:th.bdr,background:th.card,color:th.blk,padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s ease, transform 0.1s ease"}}>Reveal corruption</button>
+              {foundSecrets.length > 0 && (
+              <div style={{marginTop:18,display:"flex",gap:12,flexWrap:"wrap"}}>
+                <Btn th={th} v={hideCorruption?"dark":"ghost"} onClick={()=>{ setHideCorruption(!hideCorruption); ping(hideCorruption?'Corruption revealed.':'Corruption hidden.'); }} style={{minWidth:180}}>
+                  {hideCorruption?'Reveal corruption':'Hide corruption'}
+                </Btn>
+                <Btn th={th} v="ghost" onClick={resetCorruption} style={{minWidth:180}}>
+                  Reset corruption
+                </Btn>
               </div>
               )}
             </div>
           </section>
 
           <div style={{maxWidth:980,margin:"0 auto",padding:"28px 40px 0"}}>
-            <div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14}}>
-              <div style={{display:"flex",flexWrap:"wrap"}}>
+            <div style={{display:"grid",gap:10,marginBottom:14}}>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                 {CATS.map((c,i)=>{
                   const count=c==="All"?progs.length:progs.filter(p=>p.cat===c).length;
-                  return <button key={c} className="btn-animated" onClick={()=>setCat(c)} style={{padding:"7px 14px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:th.bdr,marginRight:-2,marginBottom:-2,position:"relative",zIndex:cat===c?2:1,background:cat===c?th.blk:th.card,color:cat===c?th.card:th.blk,filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"background .1s, filter 0.1s ease, transform 0.1s ease"}}>
-                    {tr.cats[i]||c} <span style={{opacity:.4}}>({count})</span>
+                  return <button key={c} className="btn-animated" onClick={()=>setCat(c)} style={{...baseBtn(cat===c),marginBottom:8,position:"relative",zIndex:cat===c?2:1}}>
+                    {tr.cats[i]||c} <span style={{opacity:.4}}>{`(${count})`}</span>
                   </button>;
                 })}
               </div>
-              <select className="btn-animated" value={sort} onChange={e=>setSort(e.target.value)} style={{padding:"7px 12px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:th.inputBg,color:th.blk,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,alignSelf:"flex-start",transition:"filter 0.1s ease, transform 0.1s ease"}}>
-                <option value="newest">{tr.sn}</option>
-                <option value="popular">{tr.sp}</option>
-                <option value="az">{tr.sa}</option>
-              </select>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+                {user&&<button onClick={()=>setMyAppsOnly(v=>!v)} className="btn-animated" style={{...baseBtn(myAppsOnly),minWidth:120}}>{lt.myapps}</button>}
+                <select className="btn-animated" value={sort} onChange={e=>setSort(e.target.value)} style={{padding:"7px 10px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:th.inputBg,color:th.blk,cursor:"pointer",filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,minWidth:170,transition:"filter 0.1s ease, transform 0.1s ease"}}>
+                  <option value="newest">{tr.sn}</option>
+                  <option value="popular">{tr.sp}</option>
+                  <option value="az">{tr.sa}</option>
+                </select>
+              </div>
             </div>
             <input className="secret-search" style={{...inp,padding:"11px 14px",marginBottom:12}} placeholder={tr.search} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={handleSearchKeyDown}/>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:28,paddingTop:12,borderTop:`1px solid ${th.div}`}}>
               <span style={{fontSize:11,color:th.mut,marginRight:4,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.platform}</span>
-              {OSS.map(o=><button key={o.id} className="btn-animated" onClick={()=>setOsFilter(f=>f.includes(o.id)?f.filter(x=>x!==o.id):[...f,o.id])} style={{padding:"4px 10px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,border:th.bdr,background:osFilter.includes(o.id)?th.blk:th.card,color:osFilter.includes(o.id)?th.card:th.blk,filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"all .1s, filter 0.1s ease, transform 0.1s ease"}}>{o.l}</button>)}
+              {OSS.map(o=><button key={o.id} className="btn-animated" onClick={()=>setOsFilter(f=>f.includes(o.id)?f.filter(x=>x!==o.id):[...f,o.id])} style={{...baseBtn(osFilter.includes(o.id)),marginRight:8,marginBottom:8}}>{o.l}</button>)}
               {osFilter.length>0&&<button onClick={()=>setOsFilter([])} style={{background:"none",border:"none",fontSize:11,color:"#e03d0c",cursor:"pointer",textDecoration:"underline",fontFamily:"'IBM Plex Mono',monospace",padding:0}}>{tr.clear}</button>}
             </div>
           </div>
@@ -1535,7 +1696,7 @@ export default function Vault() {
                     <div key={gridKey+"f"} style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:20}}>
                       {featVis.map((p,i)=>(
                         <div key={p.id} style={{animation:`fadeUp .38s cubic-bezier(.22,1,.36,1) ${i*.06}s both`}}>
-                          <CardWithSecrets p={p} onDownload={download} onLike={handleLike} liked={likes.includes(p.id)} onDetail={setDetailProg} loadingDl={loadingDl} th={th} tr={tr}/>
+                          <CardWithSecrets p={p} onDownload={download} onLike={handleLike} liked={likes.includes(p.id)} inLibrary={library.includes(p.id)} onToggleLibrary={handleToggleLibrary} lt={lt} onDetail={setDetailProg} loadingDl={loadingDl} th={th} tr={tr}/>
                         </div>
                       ))}
                     </div>
@@ -1546,7 +1707,7 @@ export default function Vault() {
                   <div key={gridKey+"r"} style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:20}}>
                     {regVis.map((p,i)=>(
                       <div key={p.id} style={{animation:`fadeUp .38s cubic-bezier(.22,1,.36,1) ${i*.06}s both`}}>
-                        <CardWithSecrets p={p} onDownload={download} onLike={handleLike} liked={likes.includes(p.id)} onDetail={setDetailProg} loadingDl={loadingDl} th={th} tr={tr}/>
+                        <CardWithSecrets p={p} onDownload={download} onLike={handleLike} liked={likes.includes(p.id)} inLibrary={library.includes(p.id)} onToggleLibrary={handleToggleLibrary} lt={lt} onDetail={setDetailProg} loadingDl={loadingDl} th={th} tr={tr}/>
                       </div>
                     ))}
                   </div>
@@ -1608,7 +1769,7 @@ export default function Vault() {
                   </div>
                 </div>
                 <div style={{marginBottom:18}}><label style={lbl}>{tr.dl2}</label><textarea style={{...inp,height:80,resize:"vertical"}} value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} placeholder="What does it do?"/></div>
-                <div style={{marginBottom:18}}><label style={lbl}>{tr.pl}</label><OsToggle val={form.os||[]} onChange={id=>setForm(f=>({...f,os:(f.os||[]).includes(id)?(f.os||[]).filter(x=>x!==id):[...(f.os||[]),id]}))} th={th}/></div>
+                
                 <div key={uploadKey} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:18}}>
                   <ImageUploadField label={tr.cov} tip={tr.img_tip} single images={form.coverImage?[form.coverImage]:[]}
                     onChange={async e=>{const f=e.target.files[0];if(!f)return;const img=await processCoverImage(f);if(img)setForm(x=>({...x,coverImage:img}));else ping("Couldn't process image.","err");}}
@@ -1617,25 +1778,19 @@ export default function Vault() {
                     onChange={async e=>{const files=Array.from(e.target.files).slice(0,6-(form.screenshots||[]).length);const imgs=await Promise.all(files.map(f=>processScreenshot(f)));setForm(x=>({...x,screenshots:[...(x.screenshots||[]),...imgs.filter(Boolean)].slice(0,6)}));}}
                     onRemove={i=>setForm(x=>({...x,screenshots:x.screenshots.filter((_,j)=>j!==i)}))} th={th} lbl={lbl} maxCount={6}/>
                 </div>
-                <div style={{marginBottom:22}}>
-                  <div style={{display:"flex",marginBottom:12}}>
-                    {["url","file"].map((m,i)=>(
-                      <button key={m} className="btn-animated" onClick={()=>setUploadMode(m)} style={{padding:"8px 18px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,border:th.bdr,marginRight:i===0?-2:0,background:uploadMode===m?th.blk:th.card,color:uploadMode===m?th.card:th.blk,position:"relative",zIndex:uploadMode===m?2:1,filter:`drop-shadow(3px 3px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s ease, transform 0.1s ease, background .1s, color .1s"}}>
-                        {m==="url"?tr.lu:tr.uf}
-                      </button>
-                    ))}
-                  </div>
-                  {uploadMode==="url"?(
-                    <div><label style={lbl}>{tr.ul}</label><input style={inp} value={form.url} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://..."/></div>
-                  ):(
-                    <div>
-                      <label style={lbl}>{tr.fl}</label>
-                      <input ref={fileRef} type="file" style={{...inp,padding:"8px 12px"}} onChange={e=>setForm({...form,file:e.target.files[0]})}/>
-                      <p style={{fontSize:10,color:th.mut,marginTop:6,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.bf}</p>
+                <div key={uploadKey} style={{marginBottom:22}}>
+                  <label style={lbl}>Downloads (one file per platform)</label>
+                  {OS_DL.map(o=>(
+                    <div key={o.id} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                      <span style={{width:74,fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:th.blk}}>{o.l}</span>
+                      <input type="file" style={{...inp,padding:"7px 10px",flex:1,marginBottom:0}} onChange={e=>setForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],file:e.target.files[0]||null}}}))}/>
+                      <input style={{...inp,flex:1,marginBottom:0}} placeholder="or paste a URL" value={form.builds?.[o.id]?.url||""} onChange={e=>setForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],url:e.target.value}}}))}/>
                     </div>
-                  )}
+                  ))}
+                  <p style={{fontSize:10,color:th.mut,marginTop:6,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.bf}</p>
+                  <div style={{marginTop:14}}><label style={lbl}>Web app URL (optional)</label><input style={inp} value={form.url} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://… (opens in browser)"/></div>
                 </div>
-                <Btn v="primary" onClick={upload} disabled={busy} th={th} style={{padding:"11px 32px"}}>{busy?tr.adng:tr.ab}</Btn>
+                 <Btn v="primary" onClick={upload} disabled={busy} th={th} style={{padding:"11px 32px"}}>{busy?tr.adng:tr.ab}</Btn>
               </div>
 
               {progs.length>0&&(
@@ -1668,7 +1823,7 @@ export default function Vault() {
                               onMouseLeave={e=>{e.currentTarget.style.transform="none";}}
                               onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px) scale(.98)";}}
                               onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px) scale(1.05)";}}>★</button>
-                            <Btn sm th={th} onClick={()=>{setEditId(p.id);setEditForm({name:p.name,desc:p.desc||"",ver:p.ver||"1.0",cat:p.cat||"Tools",url:p.url||"",os:p.os||[],coverImage:p.coverImage||null,screenshots:p.screenshots||[]});setModal("edit");}}>{tr.ed}</Btn>
+                            <Btn sm th={th} onClick={()=>{setEditId(p.id);setEditForm({name:p.name,desc:p.desc||"",ver:p.ver||"1.0",cat:p.cat||"Tools",url:p.url||"",os:p.os||[],downloads:p.downloads||{},builds:freshEditBuilds(),coverImage:p.coverImage||null,screenshots:p.screenshots||[]});setModal("edit");}}>{tr.ed}</Btn>
                             <Btn sm v="danger" th={th} onClick={()=>setDelId(p.id)}>{tr.del}</Btn>
                           </div>
                         )}
@@ -1801,7 +1956,7 @@ export default function Vault() {
         <span onClick={handleFooterYearClick} style={{fontSize:11,color:th.mut,fontFamily:"'IBM Plex Mono',monospace",cursor:"default",userSelect:"none"}}>{new Date().getFullYear()}</span>
       </footer>
 
-      {detailProg&&<DetailModal prog={detailProg} liked={likes.includes(detailProg.id)} onLike={handleLike} onDownload={download} loadingDl={loadingDl} onClose={()=>setDetailProg(null)} th={th} tr={tr}/>}
+      {detailProg&&<DetailModal prog={detailProg} liked={likes.includes(detailProg.id)} onLike={handleLike} inLibrary={library.includes(detailProg.id)} onToggleLibrary={handleToggleLibrary} lt={lt} onDownload={download} loadingDl={loadingDl} onClose={()=>setDetailProg(null)} th={th} tr={tr}/>}
 
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20,animation:"fadein .2s ease",backdropFilter:"blur(0px)"}} onClick={closeModal}>
@@ -1815,6 +1970,10 @@ export default function Vault() {
                   <input type="email" style={{...inp,marginBottom:12}} value={setupEmail} onChange={e=>setSetupEmail(e.target.value)} placeholder="you@example.com" />
                 </>
               )}
+              {modal==="changepw"&&(<>
+                <label style={lbl}>{lang==="de"?"aktuelles Passwort":"current password"}</label>
+                <input type="password" style={{...inp,marginBottom:12}} value={curPw} onChange={e=>setCurPw(e.target.value)} placeholder="••••••••"/>
+              </>)}
               <label style={lbl}>{modal==="login"?tr.pw:modal==="changepw"?tr.pwn:tr.pwm}</label>
               <input type="password" style={{...inp,marginBottom:12}} value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){modal==="login"?login():modal==="changepw"?changePw():setupAdmin();}}} placeholder="••••••••" autoFocus/>
               {modal==="login"&&loginRequires2fa&&(
@@ -1830,10 +1989,37 @@ export default function Vault() {
               </>)}
               {pwErr&&<p style={{fontSize:12,color:"#e03d0c",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{pwErr}</p>}
               {modal==="setup"&&<p style={{fontSize:10,color:th.mut,marginBottom:16,lineHeight:1.75,padding:"8px 12px",background:th.bg,border:`1px solid ${th.div}`,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.lw}</p>}
+              {modal==="login"&&!loginRequires2fa&&(<button onClick={()=>{setModal("reset");setResetStep("request");setResetErr("");setResetMsg("");setResetCode("");setPw("");setPw2("");}} style={{background:"none",border:"none",color:th.mut,fontFamily:"'IBM Plex Mono',monospace",fontSize:11,cursor:"pointer",padding:0,marginBottom:14,textDecoration:"underline",display:"block"}}>{lang==="de"?"Passwort vergessen?":"Forgot password?"}</button>)}
               <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                 <Btn sm th={th} onClick={closeModal}>{tr.cncl}</Btn>
                 <Btn sm v="primary" th={th} onClick={modal==="login"?login:modal==="changepw"?changePw:setupAdmin}>{modal==="login"?tr.si:modal==="changepw"?tr.sv:tr.ca}</Btn>
               </div>
+            </div>
+          )}
+          {modal==="reset"&&(
+            <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:360,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .3s cubic-bezier(.22,1,.36,1) both"}}>
+              <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,marginBottom:14,letterSpacing:.3,color:th.blk}}>{lang==="de"?"Passwort zurücksetzen":"Reset password"}</h2>
+              {resetStep==="request"?(<>
+                <p style={{fontSize:12,color:th.mut,lineHeight:1.7,marginBottom:18,fontFamily:"'IBM Plex Mono',monospace"}}>{lang==="de"?"Wir senden einen Reset-Code an deine Admin-E-Mail.":"We'll email a reset code to your admin email."}</p>
+                {resetErr&&<p style={{fontSize:12,color:"#e03d0c",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{resetErr}</p>}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <Btn sm th={th} onClick={()=>{setModal("login");setResetErr("");}}>{tr.cncl}</Btn>
+                  <Btn sm v="primary" th={th} onClick={requestReset}>{lang==="de"?"Code senden":"Send code"}</Btn>
+                </div>
+              </>):(<>
+                {resetMsg&&<p style={{fontSize:11,color:th.mut,marginBottom:12,lineHeight:1.6,fontFamily:"'IBM Plex Mono',monospace"}}>{resetMsg}</p>}
+                <label style={lbl}>{lang==="de"?"Reset-Code":"reset code"}</label>
+                <input type="text" style={{...inp,marginBottom:12}} value={resetCode} onChange={e=>setResetCode(e.target.value)} placeholder="000000" autoFocus/>
+                <label style={lbl}>{tr.pwn}</label>
+                <input type="password" style={{...inp,marginBottom:12}} value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••"/>
+                <label style={lbl}>{tr.conf}</label>
+                <input type="password" style={{...inp,marginBottom:12}} value={pw2} onChange={e=>setPw2(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmReset();}} placeholder="••••••••"/>
+                {resetErr&&<p style={{fontSize:12,color:"#e03d0c",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{resetErr}</p>}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <Btn sm th={th} onClick={()=>{setModal("login");setResetErr("");setResetStep("request");}}>{tr.cncl}</Btn>
+                  <Btn sm v="primary" th={th} onClick={confirmReset}>{lang==="de"?"Zurücksetzen":"Reset"}</Btn>
+                </div>
+              </>)}
             </div>
           )}
           {modal==="edit"&&editId&&(
@@ -1847,8 +2033,28 @@ export default function Vault() {
                 </div>
               </div>
               <div style={{marginBottom:14}}><label style={lbl}>{tr.dl2}</label><textarea style={{...inp,height:72,resize:"vertical"}} value={editForm.desc} onChange={e=>setEditForm({...editForm,desc:e.target.value})}/></div>
-              <div style={{marginBottom:14}}><label style={lbl}>{tr.kf}</label><input style={inp} value={editForm.url} onChange={e=>setEditForm({...editForm,url:e.target.value})} placeholder="https://..."/></div>
-              <div style={{marginBottom:14}}><label style={lbl}>{tr.pl}</label><OsToggle val={editForm.os||[]} onChange={id=>setEditForm(f=>({...f,os:(f.os||[]).includes(id)?(f.os||[]).filter(x=>x!==id):[...(f.os||[]),id]}))} th={th}/></div>
+              <div style={{marginBottom:14}}><label style={lbl}>Web app URL (optional)</label><input style={inp} value={editForm.url} onChange={e=>setEditForm({...editForm,url:e.target.value})} placeholder="https://… (opens in browser)"/></div>
+                            <div style={{marginBottom:14}}>
+                <label style={lbl}>Downloads (one file per platform)</label>
+                {OS_DL.map(o=>{
+                  const cur=(editForm.downloads||{})[o.id];
+                  const b=(editForm.builds||{})[o.id]||{};
+                  return (
+                    <div key={o.id} style={{marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${th.div}`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                        <span style={{width:74,fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:th.blk}}>{o.l}</span>
+                        <span style={{fontSize:11,color:cur?th.blk:th.mut,fontFamily:"'IBM Plex Mono',monospace",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur?("current: "+(cur.name||cur.url)):"(no build)"}</span>
+                        {cur&&(<label style={{fontSize:11,color:"#e03d0c",fontFamily:"'IBM Plex Mono',monospace",display:"flex",alignItems:"center",gap:4,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={!!b.remove} onChange={e=>setEditForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],remove:e.target.checked}}}))} style={{accentColor:"#e03d0c",cursor:"pointer"}}/>remove</label>)}
+                      </div>
+                      <div style={{display:"flex",gap:8,opacity:b.remove?0.4:1}}>
+                        <input type="file" disabled={!!b.remove} style={{...inp,padding:"7px 10px",flex:1,marginBottom:0}} onChange={e=>setEditForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],file:e.target.files[0]||null}}}))}/>
+                        <input disabled={!!b.remove} style={{...inp,flex:1,marginBottom:0}} placeholder={cur?"replace with a URL":"or paste a URL"} value={b.url||""} onChange={e=>setEditForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],url:e.target.value}}}))}/>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p style={{fontSize:10,color:th.mut,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.bf}</p>
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
                 <ImageUploadField label={tr.cov} single images={editForm.coverImage?[editForm.coverImage]:[]}
                   onChange={async e=>{const f=e.target.files[0];if(!f)return;const img=await processCoverImage(f);if(img)setEditForm(x=>({...x,coverImage:img}));}}
@@ -1859,7 +2065,7 @@ export default function Vault() {
               </div>
               <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                 <Btn sm th={th} onClick={()=>setModal(null)}>{tr.cncl}</Btn>
-                <Btn sm v="primary" th={th} onClick={saveEdit}>{tr.sc}</Btn>
+                <Btn sm v="primary" th={th} onClick={saveEdit} disabled={busy}>{busy?(lang==="de"?"Speichern…":"Saving…"):tr.sc}</Btn>
               </div>
             </div>
           )}
@@ -2105,6 +2311,48 @@ export default function Vault() {
               but there is another way to touch things. the right side of your mouse. press it. hold it. on a card. make the card feel pressure from an unexpected direction. the vault remembers those who violate its expectations.
             </p>
             <SecretDownloadCard dl={getSd(12)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
+          </div>
+        </div>
+      )}
+
+      {partyConfirm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9004,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
+          <div style={{position:"relative",background:"#1a0f2e",border:"2px solid #ec4899",padding:"40px 36px",maxWidth:480,width:"100%",boxShadow:"0 0 0 4px rgba(236,72,153,.1),0 0 60px rgba(236,72,153,.2)",animation:"modalIn .3s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto",borderRadius:12}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#f472b6",letterSpacing:2,marginBottom:16,textTransform:"uppercase"}}>⚠️ Epilepsy Warning</div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:32,fontWeight:400,color:"#ec4899",lineHeight:1.1,marginBottom:14,letterSpacing:.3}}>Party Mode</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#f1a9d0",lineHeight:2,marginBottom:24}}>
+              This mode activates rapid color and motion shifts. If you have epilepsy or are sensitive to flashing lights, please do not enable this feature.
+            </p>
+            <div style={{display:"flex",gap:12}}>
+              <button onClick={()=>setPartyConfirm(false)} style={{flex:1,padding:"11px 16px",border:"1px solid #666",background:"transparent",color:"#999",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,letterSpacing:.8,borderRadius:6,transition:"all .2s"}}>Decline</button>
+              <button onClick={()=>{
+                setPartyConfirm(false);
+                setPartyMode(true);
+                setPartySecret(true);
+                if(user){
+                  setPartyUnlocked(true);
+                  ls.set(partyUnlockedKey(user.id), "1");
+                  ls.set(partyEnabledKey(user.id), "1");
+                }
+                ping("Party mode activated","ok");
+              }} style={{flex:1,padding:"11px 16px",border:"none",background:"#ec4899",color:"#fff",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,letterSpacing:.8,fontWeight:600,borderRadius:6,boxShadow:"0 8px 20px rgba(236,72,153,.3)"}}>I Understand</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {partySecret&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(8,0,16,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9005,padding:20,animation:"fadeIn .25s ease",pointerEvents:"none"}}>
+          <div style={{position:"relative",background:"linear-gradient(135deg,rgba(20,4,40,.98) 0%,rgba(30,10,50,.98) 100%)",border:"2px solid #ec4899",padding:"44px 40px",maxWidth:520,width:"100%",boxShadow:"0 0 0 4px rgba(236,72,153,.08),0 0 80px rgba(236,72,153,.15),inset 0 0 40px rgba(236,72,153,.05)",animation:"modalIn .4s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto",borderRadius:12}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#f1a9d0",letterSpacing:2.5,marginBottom:12,textTransform:"uppercase",fontWeight:600}}>✨ Party Mode Active</div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:40,fontWeight:400,color:"#f472b6",lineHeight:1.05,marginBottom:16,letterSpacing:.5,animation:"vaultGlow 2.2s ease infinite"}}>FREQUENCY<br/>SHIFT</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#e9a0c8",lineHeight:2,marginBottom:28}}>
+              Interface colors and motion are shifting to celebrate this discovery. Enjoy the rhythm!
+            </p>
+            <div style={{display:"flex",gap:12}}>
+              <button onClick={()=>{setPartyMode(false);setPartySecret(false);}} style={{flex:1,padding:"12px 16px",border:"1px solid #ec4899",background:"transparent",color:"#f1a9d0",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,letterSpacing:.8,borderRadius:6,transition:"all .2s",":hover":{background:"rgba(236,72,153,.1)"}}} onMouseEnter={(e)=>e.target.style.background="rgba(236,72,153,.1)"} onMouseLeave={(e)=>e.target.style.background="transparent"}>Stop Party</button>
+              <button onClick={()=>setPartySecret(false)} style={{flex:1,padding:"12px 16px",border:"none",background:"#ec4899",color:"#fff",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,letterSpacing:.8,fontWeight:600,borderRadius:6,boxShadow:"0 8px 20px rgba(236,72,153,.3)"}}>Keep Vibing</button>
+            </div>
           </div>
         </div>
       )}

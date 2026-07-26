@@ -21,40 +21,19 @@ Follow these steps **exactly in order**. Each step tells you where to go and wha
 
 ### 1c. Paste the SQL Code
 - In the text editor that appears, **CLEAR everything** (Ctrl+A, then Delete)
-- Copy this code and paste it into the Supabase SQL editor:
-
-```sql
-CREATE TABLE IF NOT EXISTS public.programs (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  desc TEXT,
-  ver TEXT,
-  cat TEXT,
-  url TEXT,
-  os TEXT[] DEFAULT ARRAY[]::TEXT[],
-  coverImage TEXT,
-  screenshots TEXT[] DEFAULT ARRAY[]::TEXT[],
-  dl INTEGER DEFAULT 0,
-  likes INTEGER DEFAULT 0,
-  featured BOOLEAN DEFAULT false,
-  date TIMESTAMP DEFAULT NOW(),
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow anonymous read" ON public.programs
-  FOR SELECT USING (true);
-
-CREATE POLICY "Allow authenticated write" ON public.programs
-  FOR ALL USING (true) WITH CHECK (true);
-```
+- Open the file **`SETUP_SUPABASE.sql`** (in your project root), copy its **entire contents**, and paste them in.
+- That one file creates everything — the `programs` and `settings` tables **and** the user-accounts tables (`profiles`, `likes`) with all their security rules. It's safe to re-run.
 
 ### 1d. Run the SQL
 - At the **bottom right** of the SQL editor, you'll see a **"Run"** button (or press Ctrl+Enter)
 - Click it
 - You should see green text saying **"Success"** or similar
 - ✅ If you see success, Step 1 is done!
+
+### 1e. Turn on email login (for user accounts)
+- Left sidebar → **Authentication** → **Providers** → make sure **Email** is enabled.
+- For instant test signups, also turn **off** "Confirm email" in the Email settings. Leave it **on** for real use, and set **Authentication → URL Configuration → Site URL** to `https://softwarevault.dev`.
+- ✅ Sign up / log in and per-account likes are now ready.
 
 ---
 
@@ -99,11 +78,15 @@ ADMIN_SECRET=sb_secret_...
 - Type this (replace `re_xxxxx` with your actual key from Step 2b):
 ```
 RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxx
+RESEND_FROM_EMAIL=noreply@your-verified-domain.com
 ```
-- **Example** (if your key was `re_abc123def456`):
+- **Example** (if your key was `re_abc123def456` and your domain is `example.com`):
 ```
 RESEND_API_KEY=re_abc123def456
+RESEND_FROM_EMAIL=noreply@example.com
 ```
+
+> If you want to send emails to other recipients, verify a domain in your Resend dashboard at `https://resend.com/domains` and use a matching `RESEND_FROM_EMAIL` address.
 
 ### 3c. Save the File
 - Press **Ctrl+S** (Windows) or **Cmd+S** (Mac)
@@ -212,6 +195,8 @@ git push origin main
 ✅ **Programs now save permanently** - They sync to Supabase automatically  
 ✅ **Your website shows your content** - Banner, programs, everything displays  
 ✅ **2FA email codes work** - Admin gets codes emailed via Resend  
+✅ **User accounts** - Visitors can sign up / log in (header button); sessions persist  
+✅ **Per-account likes** - Likes are tied to the account and follow people across devices  
 
 ---
 

@@ -55,6 +55,16 @@ export async function POST(req) {
 
     const svc = getServiceClient();
 
+    // Fetch existing rows first. `likes` is maintained by a DB trigger (on the
+    // `likes` table), so we PRESERVE the stored value and never overwrite it from
+    // the client payload — otherwise a download/edit save would clobber the count.
+    const { data: existing, error: fetchErr } = await svc.from("programs").select("id, likes");
+    if (fetchErr && !isMissingTableError(fetchErr)) {
+      console.error("Error fetching existing programs:", fetchErr);
+      throw fetchErr;
+    }
+    const existingLikes = new Map((existing ?? []).map(p => [p.id, p.likes]));
+
     // Filter programs to only include fields that exist in the table
     const progsToSave = programs.map(p => ({
       id: p.id,
@@ -69,18 +79,12 @@ export async function POST(req) {
       os: Array.isArray(p.os) ? p.os : [],
       coverimage: p.coverImage,
       screenshots: Array.isArray(p.screenshots) ? p.screenshots : [],
+      downloads: p.downloads || {},
       dl: p.dl || 0,
-      likes: p.likes || 0,
+      likes: existingLikes.has(p.id) ? existingLikes.get(p.id) : (p.likes || 0),
       featured: p.featured || false,
       date: p.date,
     }));
-
-    // Get existing program IDs
-    const { data: existing, error: fetchErr } = await svc.from("programs").select("id");
-    if (fetchErr && !isMissingTableError(fetchErr)) {
-      console.error("Error fetching existing programs:", fetchErr);
-      throw fetchErr;
-    }
 
     const existingIds = new Set(existing?.map(p => p.id) ?? []);
     const incomingIds = new Set(programs.map(p => p.id).filter(id => id));

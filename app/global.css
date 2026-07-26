@@ -195,6 +195,30 @@ button, input, textarea, select {
 	filter: drop-shadow(1px 1px 0 currentColor);
 }
 
+/* Make static buttons (no .btn-animated) feel alive */
+button:not(.btn-animated) {
+	transition: transform .14s ease, box-shadow .14s ease, background .14s ease;
+}
+button:not(.btn-animated):hover {
+	transform: translateY(-2px) scale(1.01);
+	box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+}
+button:not(.btn-animated):active {
+	transform: translateY(0) scale(0.997);
+}
+
+/* Glow utility for highlight buttons */
+.glow {
+	box-shadow: 0 12px 30px rgba(124,58,237,0.18);
+	animation: glowPulse 2.2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+	0% { box-shadow: 0 6px 18px rgba(124,58,237,0.12); }
+	50% { box-shadow: 0 18px 48px rgba(124,58,237,0.20); }
+	100% { box-shadow: 0 6px 18px rgba(124,58,237,0.12); }
+}
+
 /* Glitch effects on elements when corruption increases */
 html.corrupt-lvl-5 .program-card,
 html.corrupt-lvl-6 .program-card,
@@ -378,4 +402,15 @@ html.corrupt-lvl-12 {
 	50% { transform: translateX(2px) rotateZ(0.5deg); }
 	75% { transform: translateX(-1px) rotateZ(-0.3deg); }
 	100% { transform: none; }
+}
+
+/* Party mode: apply a hue-rotation animation to the root when active */
+html.party-active #sv-root,
+html.party-active body {
+    animation: partyShift .65s linear infinite;
+}
+
+@keyframes partyShift {
+    0% { filter: hue-rotate(0deg) saturate(1.6); }
+    100% { filter: hue-rotate(360deg) saturate(1.6); }
 }
