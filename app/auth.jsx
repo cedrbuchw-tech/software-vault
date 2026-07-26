@@ -319,6 +319,7 @@ function AuthModal({ lang, th, onClose }) {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [code2fa, setCode2fa] = useState("");
+  const [ticket, setTicket] = useState("");
 
   // a drag ending on the backdrop must not throw away what was typed; and the
   // page behind the dialog shouldn't scroll while it's open
@@ -407,15 +408,42 @@ function AuthModal({ lang, th, onClose }) {
         });
         if (error) throw error;
         onClose();
+      } else if (mode === "emailcode") {
+        const res = await fetch("/api/auth/login/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticket, code: code2fa.trim() }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || "Could not verify the code");
+        const { error } = await supabase.auth.setSession(out.session);
+        if (error) throw error;
+        onClose();
       } else {
-        const resolvedEmail = await resolveEmail(email);
-        const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password: pw });
+        // The server decides which second factor this account needs. For the
+        // email factor it deliberately withholds the session until the code is
+        // confirmed, so an unverified sign-in never reaches the browser.
+        const res = await fetch("/api/auth/login/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: email.trim(), password: pw }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || "Invalid login credentials");
+
+        if (out.mfaRequired === "email") {
+          setTicket(out.ticket);
+          setMode("emailcode");
+          setPw("");
+          setMsg("We sent a code to your email address.");
+          setBusy(false);
+          return;
+        }
+
+        const { error } = await supabase.auth.setSession(out.session);
         if (error) throw error;
 
-        // Does this account still owe a second factor? Supabase answers with the
-        // level the session HAS versus the level it COULD reach.
-        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+        if (out.mfaRequired === "totp") {
           setMode("mfa");
           setPw("");
           setBusy(false);
@@ -451,7 +479,8 @@ function AuthModal({ lang, th, onClose }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <strong style={{ fontSize: 16 }}>
-            {mode === "mfa" ? "Two-factor code"
+            {mode === "emailcode" ? "Check your email"
+              : mode === "mfa" ? "Two-factor code"
               : mode === "newpw" ? "Set a new password"
               : mode === "reset" ? t.reset : (mode === "up" ? t.up_ : t.in_)}
           </strong>
@@ -466,10 +495,12 @@ function AuthModal({ lang, th, onClose }) {
               <input value={username} onChange={(e) => setUsername(e.target.value)}
                 name="username" placeholder={t.user} autoComplete="username" style={input} maxLength={24} />
             )}
-            {mode === "mfa" && (
+            {(mode === "mfa" || mode === "emailcode") && (
               <>
                 <p style={{ fontSize: 11, opacity: .75, margin: "0 0 10px" }}>
-                  Enter the 6-digit code from your authenticator app.
+                  {mode === "emailcode"
+                    ? "Enter the 6-digit code we emailed you. It expires in 10 minutes."
+                    : "Enter the 6-digit code from your authenticator app."}
                 </p>
                 <input value={code2fa} onChange={(e) => setCode2fa(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   name="otp" placeholder="000000" inputMode="numeric" autoComplete="one-time-code"
@@ -477,7 +508,7 @@ function AuthModal({ lang, th, onClose }) {
                   onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
               </>
             )}
-            {mode !== "up" && mode !== "newpw" && mode !== "mfa" && (
+            {mode !== "up" && mode !== "newpw" && mode !== "mfa" && mode !== "emailcode" && (
               <input value={email} onChange={(e) => setEmail(e.target.value)}
                 name="emailOrUsername" placeholder={t.emailOrUsername || t.email} type="text" autoComplete="username" style={input} />
             )}
@@ -490,7 +521,7 @@ function AuthModal({ lang, th, onClose }) {
               <input value={email} onChange={(e) => setEmail(e.target.value)}
                 name="email" placeholder={t.email} type="email" autoComplete="email" style={input} />
             )}
-            {mode !== "reset" && mode !== "mfa" && (
+            {mode !== "reset" && mode !== "mfa" && mode !== "emailcode" && (
               <input value={pw} onChange={(e) => setPw(e.target.value)}
                 name="password" placeholder={t.pass} type="password"
                 autoComplete={mode === "up" || mode === "newpw" ? "new-password" : "current-password"} style={input}
@@ -509,7 +540,7 @@ function AuthModal({ lang, th, onClose }) {
               style={{ width: "100%", padding: 10, background: th.org, color: "#fff",
                        border: th.bdr, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
                        fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600 }}>
-              {busy ? "…" : (mode === "mfa" ? "Verify"
+              {busy ? "…" : ((mode === "mfa" || mode === "emailcode") ? "Verify"
                 : mode === "newpw" ? "Save new password"
                 : mode === "reset" ? t.reset : (mode === "up" ? t.up_ : t.in_))}
             </button>
@@ -567,6 +598,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const [code2fa, setCode2fa] = useState("");
   const [verify2faBusy, setVerify2faBusy] = useState(false);
   const [factorId, setFactorId] = useState("");
+  const [emailTwofa, setEmailTwofa] = useState(false);
   const [customSettings, setCustomSettings] = useState({
     brightness: localStorage.getItem("brightness") || "light",
     buttonStyle: localStorage.getItem("buttonStyle") || "edgy",
@@ -575,6 +607,9 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   useEffect(() => {
     // 2FA now lives in Supabase's own MFA system, so ask it which factors the
     // account actually has instead of trusting a flag in our profiles table.
+    supabase.from("profiles").select("email_2fa_enabled").eq("id", user.id).single()
+      .then(({ data }) => setEmailTwofa(!!data?.email_2fa_enabled))
+      .catch(() => {});
     supabase.auth.mfa.listFactors()
       .then(({ data }) => {
         const verified = (data?.totp || []).find((f) => f.status === "verified");
@@ -583,6 +618,27 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
       })
       .catch(() => {});
   }, [user.id]);
+
+  async function toggleEmail2fa(next) {
+    setErr(""); setBusy(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      const res = await fetch("/api/auth/email2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || at.uerr);
+      setEmailTwofa(out.enabled);
+      setMsg(at.updated);
+    } catch (e) {
+      setErr(e?.message || at.uerr);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function initiate2fa() {
     setErr(""); setBusy(true);
@@ -742,6 +798,18 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
               </button>
               <button onClick={() => setSetup2fa(false)} style={linkBtn}>Cancel</button>
             </div>
+          ) : emailTwofa ? (
+            <>
+              <p style={{ fontSize: 11, opacity: .75, margin: "0 0 8px" }}>
+                Codes are emailed to you when you sign in.
+              </p>
+              <button onClick={() => toggleEmail2fa(false)} disabled={busy}
+                style={{ width: "100%", padding: 10, background: "#e03d0c", color: "#fff",
+                         border: th.bdr, cursor: "pointer", opacity: busy ? 0.6 : 1,
+                         fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
+                {busy ? "…" : "Turn off email codes"}
+              </button>
+            </>
           ) : twofa ? (
             <button onClick={disable2fa} disabled={busy}
               style={{ width: "100%", padding: 10, background: "#e03d0c", color: "#fff",
@@ -755,8 +823,19 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
                 style={{ width: "100%", padding: 10, background: th.org, color: "#fff",
                          border: th.bdr, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
                          fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
-                {busy ? "…" : at.enable2fa}
+                {busy ? "…" : at.enable2fa + " (app)"}
               </button>
+              <button onClick={() => toggleEmail2fa(true)} disabled={busy}
+                style={{ width: "100%", padding: 10, marginTop: 8, background: th.card,
+                         color: th.blk, border: th.bdr, cursor: busy ? "default" : "pointer",
+                         opacity: busy ? 0.6 : 1, fontFamily: "'IBM Plex Mono',monospace",
+                         fontSize: 12 }}>
+                {busy ? "…" : "Email me a code instead"}
+              </button>
+              <p style={{ fontSize: 10, opacity: .6, margin: "8px 0 0", lineHeight: 1.5 }}>
+                The app option is checked by the login server itself. Email codes are
+                checked by this website — more convenient, slightly weaker.
+              </p>
             </>
           )}
         </div>

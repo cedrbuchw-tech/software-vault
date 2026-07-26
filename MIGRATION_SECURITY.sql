@@ -38,20 +38,39 @@ REVOKE INSERT, UPDATE, DELETE ON public.programs FROM anon, authenticated;
 -- privilege is removed at column level instead. The API reads these with the
 -- service role, which is unaffected.
 
-REVOKE SELECT (two_fa_secret, two_fa_secret_temp)
-  ON public.profiles FROM anon, authenticated;
+-- IMPORTANT: in PostgreSQL a column-level REVOKE does nothing while the role
+-- still holds the privilege at TABLE level — and Supabase grants table-level
+-- SELECT/UPDATE on public tables to anon and authenticated by default. So the
+-- table-level privilege has to go first, then the harmless columns are granted
+-- back one by one. Built from the columns that actually exist, so this file can
+-- be run before or after the 2FA migrations, in any order, as often as you like.
 
--- Keep the rest of the profile readable (usernames, admin flag) by granting the
--- remaining columns back explicitly.
-GRANT SELECT (id, username, is_admin, created_at, two_fa_enabled)
-  ON public.profiles TO anon, authenticated;
+DO $$
+DECLARE
+  readable text[] := ARRAY['id', 'username', 'is_admin', 'created_at',
+                           'two_fa_enabled', 'email_2fa_enabled'];
+  cols text;
+BEGIN
+  -- 1. drop the blanket table-level rights
+  REVOKE SELECT, UPDATE ON public.profiles FROM anon, authenticated;
 
--- Nobody but the service role should be able to flip the admin bit or write a
--- secret. Users may still update their own row (the username), enforced by the
--- existing profiles_update_own policy.
-REVOKE UPDATE (is_admin, two_fa_enabled, two_fa_secret, two_fa_secret_temp)
-  ON public.profiles FROM anon, authenticated;
-GRANT UPDATE (username) ON public.profiles TO authenticated;
+  -- 2. hand back only the columns that are safe to read
+  SELECT string_agg(quote_ident(column_name), ', ')
+    INTO cols
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'profiles'
+     AND column_name = ANY(readable);
+
+  IF cols IS NOT NULL THEN
+    EXECUTE format('GRANT SELECT (%s) ON public.profiles TO anon, authenticated', cols);
+    RAISE NOTICE 'profiles readable columns: %', cols;
+  END IF;
+
+  -- 3. the only thing a user may change about their own row is the username.
+  --    is_admin and every 2FA column stay service-role only, so nobody can
+  --    promote themselves or switch their own second factor off.
+  GRANT UPDATE (username) ON public.profiles TO authenticated;
+END $$;
 
 
 -- ── 3. Check afterwards ────────────────────────────────────────────────────
