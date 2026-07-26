@@ -1,8 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
 import { useBackdropClose, useScrollLock } from "@/lib/modal_ux";
+import { loadAppearance, applyAppearance } from "@/lib/appearance";
 
 const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
             dark:"vault_dark",lang:"vault_lang",sett:"vault_settings",found:"vault_found" };
@@ -852,7 +853,18 @@ export default function Vault() {
   const featuredClickRef = useRef(0);
   const featuredTimerRef = useRef(null);
 
-  const tr=TR[lang]||TR.en, th=isDark?THEMES.dark:THEMES.light;
+  const tr=TR[lang]||TR.en;
+  // The chosen accent has to reach the theme object: nearly every button colours
+  // itself from th.org, so a CSS variable alone would never show up.
+  const [accent,setAccent]=useState("#e03d0c");
+  useEffect(()=>{
+    const read=()=>{ const a=loadAppearance(); applyAppearance(a); setAccent(a.accent); };
+    read();
+    window.addEventListener("vault-appearance",read);
+    return ()=>window.removeEventListener("vault-appearance",read);
+  },[]);
+  const baseTh=isDark?THEMES.dark:THEMES.light;
+  const th=useMemo(()=>({...baseTh,org:accent}),[baseTh,accent]);
   const lt = libT(lang);
   const gridKey=`${cat}|${sort}|${osFilter.join(",")}|${search}`;
   const ping=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3000); };

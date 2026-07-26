@@ -6,9 +6,10 @@
 // — lives here so the main page is barely touched. Uses the shared anon client
 // from lib/vault_client (sessions persist + refresh automatically in the browser).
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useBackdropClose, useScrollLock, Portal, scrollPanel } from "@/lib/modal_ux";
 import { loadAppearance, saveAppearance, applyAppearance, ACCENTS } from "@/lib/appearance";
+import { uploadAvatar, clearAvatar, initialsFor } from "@/lib/avatar";
 import { supabase } from "@/lib/vault_client";
 
 // ---- translations (same 8 languages as the site) ---------------------------
@@ -213,7 +214,7 @@ export function useAuth() {
   useEffect(() => {
     if (!user) { setProfile(null); return; }
     let active = true;
-    supabase.from("profiles").select("username").eq("id", user.id).single()
+    supabase.from("profiles").select("username, avatar_url").eq("id", user.id).single()
       .then(({ data }) => { if (active) setProfile(data || null); })
       .catch(() => {});
     return () => { active = false; };
@@ -221,7 +222,7 @@ export function useAuth() {
 
   function refreshProfile() {
     if (!user) { setProfile(null); return; }
-    supabase.from("profiles").select("username").eq("id", user.id).single()
+    supabase.from("profiles").select("username, avatar_url").eq("id", user.id).single()
       .then(({ data }) => setProfile(data || null))
       .catch(() => {});
   }
@@ -276,10 +277,15 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={() => setAcct(true)} title={user.email} {...press}
           style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: th.blk,
-                   background: "none", border: "none", cursor: "pointer", padding: "6px 4px",
-                   textDecoration: "underline", textUnderlineOffset: 3,
-                   maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          ◓ {displayName(user, profile)}
+                   background: "none", border: "none", cursor: "pointer", padding: "4px 4px",
+                   display: "flex", alignItems: "center", gap: 7,
+                   maxWidth: 170, overflow: "hidden" }}>
+          <Avatar url={profile?.avatar_url} name={displayName(user, profile)}
+            email={user.email} size={26} th={th} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                         textDecoration: "underline", textUnderlineOffset: 3 }}>
+            {displayName(user, profile)}
+          </span>
         </button>
         <button onClick={() => supabase.auth.signOut()}
           style={{ ...btnBase, background: th.card, color: th.blk }} {...press}>
@@ -601,6 +607,29 @@ function AuthModal({ lang, th, onClose }) {
 }
 
 // ---- account modal (change username + sign out) ----------------------------
+/** Round avatar with an initials fallback, used in the header and the dialog. */
+export function Avatar({ url, name, email, size = 32, th }) {
+  const [broken, setBroken] = useState(false);
+  const show = url && !broken;
+  return (
+    <span
+      title={name || email || ""}
+      style={{
+        width: size, height: size, borderRadius: "50%", overflow: "hidden",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        background: show ? "transparent" : (th?.org || "#e03d0c"),
+        color: "#fff", fontSize: Math.round(size * 0.4), fontWeight: 700,
+        fontFamily: "'IBM Plex Mono',monospace", flexShrink: 0,
+        border: `2px solid ${th?.blk || "#e8e4d8"}`, lineHeight: 1,
+      }}>
+      {show
+        ? <img src={url} alt="" onError={() => setBroken(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        : initialsFor(name, email)}
+    </span>
+  );
+}
+
 function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked, partyMode, onTogglePartyMode }) {
   const backdrop = useBackdropClose(onClose);
   useScrollLock();
@@ -620,6 +649,9 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const [factorId, setFactorId] = useState("");
   const [emailTwofa, setEmailTwofa] = useState(false);
   const [otpauth, setOtpauth] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const fileRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [appearance, setAppearance] = useState(loadAppearance);
 
@@ -634,8 +666,11 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   useEffect(() => {
     // 2FA now lives in Supabase's own MFA system, so ask it which factors the
     // account actually has instead of trusting a flag in our profiles table.
-    supabase.from("profiles").select("email_2fa_enabled").eq("id", user.id).single()
-      .then(({ data }) => setEmailTwofa(!!data?.email_2fa_enabled))
+    supabase.from("profiles").select("email_2fa_enabled, avatar_url").eq("id", user.id).single()
+      .then(({ data }) => {
+        setEmailTwofa(!!data?.email_2fa_enabled);
+        setAvatarUrl(data?.avatar_url || "");
+      })
       .catch(() => {});
     supabase.auth.mfa.listFactors()
       .then(({ data }) => {
@@ -645,6 +680,37 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
       })
       .catch(() => {});
   }, [user.id]);
+
+  async function pickAvatar(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";              // let the same file be chosen again later
+    if (!file) return;
+    setErr(""); setMsg(""); setAvatarBusy(true);
+    try {
+      const url = await uploadAvatar(file, user.id);
+      setAvatarUrl(url);
+      setMsg(at.updated);
+      onSaved && onSaved();
+    } catch (e2) {
+      setErr(e2?.message || at.uerr);
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function dropAvatar() {
+    setErr(""); setAvatarBusy(true);
+    try {
+      await clearAvatar(user.id);
+      setAvatarUrl("");
+      setMsg(at.updated);
+      onSaved && onSaved();
+    } catch (e2) {
+      setErr(e2?.message || at.uerr);
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   async function toggleEmail2fa(next) {
     setErr(""); setBusy(true);
@@ -781,13 +847,49 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
         style={{ width: "min(360px,92vw)", background: th.card, border: th.bdr,
                  boxShadow: th.shd, padding: 22, color: th.blk,
                  fontFamily: "'IBM Plex Mono',monospace", ...scrollPanel }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                      marginBottom: 14, position: "sticky", top: -22, zIndex: 2,
+                      background: th.card, paddingTop: 4, paddingBottom: 8 }}>
           <strong style={{ fontSize: 16 }}>{at.account}</strong>
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
         </div>
 
-        <p style={label}>{t.email}</p>
-        <div style={{ ...input, marginBottom: 14, opacity: 0.75 }}>{user.email}</div>
+        {/* profile header: picture, name, address */}
+        <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16 }}>
+          <button onClick={() => fileRef.current?.click()} disabled={avatarBusy}
+            title="Change picture"
+            style={{ background: "none", border: "none", padding: 0,
+                     cursor: avatarBusy ? "default" : "pointer", opacity: avatarBusy ? 0.5 : 1,
+                     position: "relative" }}>
+            <Avatar url={avatarUrl} name={username} email={user.email} size={64} th={th} />
+          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden",
+                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {username || user.email}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.7, overflow: "hidden",
+                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user.email}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <button onClick={() => fileRef.current?.click()} disabled={avatarBusy}
+                style={linkBtn}>
+                {avatarBusy ? "…" : (avatarUrl ? "Change picture" : "Add picture")}
+              </button>
+              {avatarUrl && (
+                <button onClick={dropAvatar} disabled={avatarBusy} style={linkBtn}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={pickAvatar} style={{ display: "none" }} />
+        </div>
+        <p style={{ fontSize: 10, opacity: .6, margin: "-8px 0 14px" }}>
+          Square-cropped and scaled to 256px in your browser before uploading.
+        </p>
 
         <p style={label}>{t.user}</p>
         <input value={username} onChange={(e) => { setUsername(e.target.value); setErr(""); setMsg(""); }}
@@ -905,6 +1007,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
 
         {user && (
           <div style={{ marginBottom: 16 }}>
+            <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
             <p style={{ ...label, marginBottom: 8 }}>Party mode</p>
             {partyUnlocked ? (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>

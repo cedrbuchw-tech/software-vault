@@ -437,16 +437,22 @@ html[data-corners="smooth"] img {
     border-radius: var(--sv-radius);
 }
 
-/* Text size */
-html[data-text="small"] { font-size: 14px; }
-html[data-text="normal"] { font-size: 16px; }
-html[data-text="large"] { font-size: 18px; }
+/* Text size.
+   The page sets font sizes in fixed pixels inside the elements themselves, so
+   changing the root font-size does nothing. `zoom` scales those too, and unlike
+   `transform: scale()` it does not turn the page into a containing block for
+   fixed-position dialogs. */
+html[data-text="small"] body { zoom: 0.9; }
+html[data-text="normal"] body { zoom: 1; }
+html[data-text="large"] body { zoom: 1.15; }
 
-/* Compact density trims the roomier paddings without touching layout logic. */
-html[data-density="compact"] main,
-html[data-density="compact"] section {
-    line-height: 1.35;
-}
+/* Density — trims the roomy paddings the layout uses. */
+html[data-density="compact"] .program-card { padding: 10px !important; }
+html[data-density="compact"] main { padding-top: 10px !important; padding-bottom: 10px !important; }
+html[data-density="compact"] section { margin-bottom: 14px !important; }
+html[data-density="compact"] header { padding-top: 8px !important; padding-bottom: 8px !important; }
+html[data-density="compact"] h1 { margin-bottom: 8px !important; }
+html[data-density="compact"] p { margin-top: 4px !important; margin-bottom: 4px !important; }
 
 /* Reduced motion — also honours the operating system setting below. */
 html[data-motion="reduced"] *,
