@@ -414,3 +414,54 @@ html.party-active body {
     0% { filter: hue-rotate(0deg) saturate(1.6); }
     100% { filter: hue-rotate(360deg) saturate(1.6); }
 }
+/* ── Appearance settings (lib/appearance.js) ─────────────────────────────── */
+/* Applied as data attributes on <html>, so a choice takes effect everywhere
+   without every component having to know about it. */
+
+:root {
+    --sv-accent: #e03d0c;
+    --sv-radius: 0px;
+}
+
+/* Corner style — the setting that previously did nothing at all. */
+html[data-corners="smooth"] {
+    --sv-radius: 10px;
+}
+
+html[data-corners="smooth"] button,
+html[data-corners="smooth"] input,
+html[data-corners="smooth"] select,
+html[data-corners="smooth"] textarea,
+html[data-corners="smooth"] .program-card,
+html[data-corners="smooth"] img {
+    border-radius: var(--sv-radius);
+}
+
+/* Text size */
+html[data-text="small"] { font-size: 14px; }
+html[data-text="normal"] { font-size: 16px; }
+html[data-text="large"] { font-size: 18px; }
+
+/* Compact density trims the roomier paddings without touching layout logic. */
+html[data-density="compact"] main,
+html[data-density="compact"] section {
+    line-height: 1.35;
+}
+
+/* Reduced motion — also honours the operating system setting below. */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+}

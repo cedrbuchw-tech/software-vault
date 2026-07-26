@@ -7,7 +7,8 @@
 // from lib/vault_client (sessions persist + refresh automatically in the browser).
 
 import { useState, useEffect } from "react";
-import { useBackdropClose, useScrollLock } from "@/lib/modal_ux";
+import { useBackdropClose, useScrollLock, Portal, scrollPanel } from "@/lib/modal_ux";
+import { loadAppearance, saveAppearance, applyAppearance, ACCENTS } from "@/lib/appearance";
 import { supabase } from "@/lib/vault_client";
 
 // ---- translations (same 8 languages as the site) ---------------------------
@@ -192,6 +193,10 @@ export function useAuth() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // saved appearance has to be in place on first paint, not only once the
+  // account dialog happens to be opened
+  useEffect(() => { applyAppearance(loadAppearance()); }, []);
+
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -368,6 +373,19 @@ function AuthModal({ lang, th, onClose }) {
         if (data.user && !data.session) {
           const sentTo = data?.user?.email || actualEmail;
           setMsg(t.check);
+
+          // The confirmation link is usually opened on a phone, which leaves this
+          // browser sitting on an unconfirmed account. Quietly retry the sign-in
+          // until it goes through, so tapping the link on the phone also lands
+          // you logged in here. Gives up after five minutes.
+          const started = Date.now();
+          const poll = setInterval(async () => {
+            if (Date.now() - started > 5 * 60_000) { clearInterval(poll); return; }
+            const { data: ok } = await supabase.auth.signInWithPassword({
+              email: actualEmail, password: pw,
+            }).catch(() => ({ data: null }));
+            if (ok?.session) { clearInterval(poll); onClose(); }
+          }, 4000);
           try {
             const res = await fetch('/api/auth/resend-confirmation', {
               method: 'POST',
@@ -469,13 +487,14 @@ function AuthModal({ lang, th, onClose }) {
   };
 
   return (
+    <Portal>
     <div {...backdrop}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
                display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ width: "min(360px,92vw)", background: th.card, border: th.bdr,
                  boxShadow: th.shd, padding: 22, color: th.blk,
-                 fontFamily: "'IBM Plex Mono',monospace" }}>
+                 fontFamily: "'IBM Plex Mono',monospace", ...scrollPanel }}>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <strong style={{ fontSize: 16 }}>
@@ -577,6 +596,7 @@ function AuthModal({ lang, th, onClose }) {
         )}
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -599,10 +619,17 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const [verify2faBusy, setVerify2faBusy] = useState(false);
   const [factorId, setFactorId] = useState("");
   const [emailTwofa, setEmailTwofa] = useState(false);
-  const [customSettings, setCustomSettings] = useState({
-    brightness: localStorage.getItem("brightness") || "light",
-    buttonStyle: localStorage.getItem("buttonStyle") || "edgy",
-  });
+  const [otpauth, setOtpauth] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [appearance, setAppearance] = useState(loadAppearance);
+
+  function updateAppearance(patch) {
+    setAppearance((prev) => {
+      const next = { ...prev, ...patch };
+      saveAppearance(next);      // writes to storage AND applies it immediately
+      return next;
+    });
+  }
 
   useEffect(() => {
     // 2FA now lives in Supabase's own MFA system, so ask it which factors the
@@ -659,6 +686,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
       setFactorId(data.id);
       setQrCode(data.totp.qr_code);   // Supabase returns a ready-made SVG data URI
       setSecret(data.totp.secret);    // shown for manual entry
+      setOtpauth(data.totp.uri);      // lets a phone hand it to its authenticator
       setSetup2fa(true);
     } catch (e) {
       setErr(e?.message || at.uerr);
@@ -745,13 +773,14 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const label = { fontSize: 11, color: th.blk, opacity: 0.7, margin: "0 0 4px" };
 
   return (
+    <Portal>
     <div {...backdrop}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
                display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ width: "min(360px,92vw)", background: th.card, border: th.bdr,
                  boxShadow: th.shd, padding: 22, color: th.blk,
-                 fontFamily: "'IBM Plex Mono',monospace" }}>
+                 fontFamily: "'IBM Plex Mono',monospace", ...scrollPanel }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <strong style={{ fontSize: 16 }}>{at.account}</strong>
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
@@ -788,6 +817,40 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
                 </div>
               )}
               <p style={{ fontSize: 11, marginBottom: 6 }}>{at.scan}</p>
+
+              {/* On a phone you can't scan the screen you're reading, so offer
+                  the two things that do work there: hand the code straight to an
+                  installed authenticator, or copy the secret and type it in. */}
+              {otpauth && (
+                <a href={otpauth}
+                  style={{ display: "block", textAlign: "center", padding: 9, marginBottom: 8,
+                           background: th.card, color: th.blk, border: th.bdr,
+                           textDecoration: "none", fontSize: 12 }}>
+                  Open in authenticator app
+                </a>
+              )}
+              {secret && (
+                <div style={{ marginBottom: 8 }}>
+                  <p style={{ fontSize: 10, opacity: .7, margin: "0 0 4px" }}>
+                    …or enter this key manually:
+                  </p>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <code style={{ flex: 1, padding: "7px 8px", background: th.inputBg,
+                                   border: th.bdr, fontSize: 11, wordBreak: "break-all" }}>
+                      {secret}
+                    </code>
+                    <button onClick={() => {
+                        navigator.clipboard?.writeText(secret)
+                          .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })
+                          .catch(() => {});
+                      }}
+                      style={{ padding: "7px 10px", background: th.card, color: th.blk,
+                               border: th.bdr, cursor: "pointer", fontSize: 11 }}>
+                      {copied ? "✓" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              )}
               <input value={code2fa} onChange={(e) => setCode2fa(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="000000" maxLength={6} style={input} />
               <button onClick={verify2fa} disabled={verify2faBusy || code2fa.length !== 6}
@@ -865,34 +928,72 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
 
         <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
 
-        {/* Customizability Settings */}
+        {/* Appearance — every option here is actually applied (lib/appearance.js) */}
         <div>
-          <p style={{ ...label, marginBottom: 8 }}>Customization</p>
-          
+          <p style={{ ...label, marginBottom: 8 }}>Appearance</p>
+
           <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Theme</p>
-            <select value={customSettings.brightness} onChange={(e)=>{
-              const val = e.target.value;
-              setCustomSettings(s=>({...s,brightness:val}));
-              localStorage.setItem("brightness",val);
-            }} style={{...input,marginBottom:0,background:th.inputBg}}>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="auto">Auto</option>
+            <p style={{ fontSize: 11, marginBottom: 4 }}>Corners</p>
+            <select value={appearance.corners}
+              onChange={(e) => updateAppearance({ corners: e.target.value })}
+              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
+              <option value="edgy">Edgy (square)</option>
+              <option value="smooth">Smooth (rounded)</option>
             </select>
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Button Style</p>
-            <select value={customSettings.buttonStyle} onChange={(e)=>{
-              const val = e.target.value;
-              setCustomSettings(s=>({...s,buttonStyle:val}));
-              localStorage.setItem("buttonStyle",val);
-            }} style={{...input,marginBottom:0,background:th.inputBg}}>
-              <option value="edgy">Edgy (drop-shadow)</option>
-              <option value="smooth">Smooth (rounded)</option>
+            <p style={{ fontSize: 11, marginBottom: 4 }}>Accent colour</p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {ACCENTS.map((a) => (
+                <button key={a.id} title={a.name}
+                  onClick={() => updateAppearance({ accent: a.id })}
+                  style={{ width: 28, height: 28, background: a.id, cursor: "pointer",
+                           border: appearance.accent === a.id
+                             ? `3px solid ${th.blk}` : "1px solid rgba(0,0,0,.3)" }} />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 11, marginBottom: 4 }}>Text size</p>
+            <select value={appearance.textSize}
+              onChange={(e) => updateAppearance({ textSize: e.target.value })}
+              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
+              <option value="small">Small</option>
+              <option value="normal">Normal</option>
+              <option value="large">Large</option>
             </select>
           </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 11, marginBottom: 4 }}>Density</p>
+            <select value={appearance.density}
+              onChange={(e) => updateAppearance({ density: e.target.value })}
+              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
+              <option value="normal">Normal</option>
+              <option value="compact">Compact</option>
+            </select>
+          </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
+                          cursor: "pointer", marginBottom: 4 }}>
+            <input type="checkbox" checked={appearance.motion === "reduced"}
+              onChange={(e) => updateAppearance({ motion: e.target.checked ? "reduced" : "full" })}
+              style={{ width: 14, height: 14, cursor: "pointer", accentColor: th.org }} />
+            Reduce animations
+          </label>
+          <p style={{ fontSize: 10, opacity: .6, margin: "0 0 4px", lineHeight: 1.5 }}>
+            Calms the glitch effects and party mode. Your device's own
+            "reduce motion" setting is respected automatically.
+          </p>
+
+          <button onClick={() => updateAppearance({ corners: "edgy", accent: "#e03d0c",
+                                                   textSize: "normal", motion: "full",
+                                                   density: "normal" })}
+            style={{ ...linkBtn, marginTop: 4 }}>
+            Reset appearance
+          </button>
         </div>
 
         <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
@@ -904,5 +1005,6 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
         </button>
       </div>
     </div>
+    </Portal>
   );
 }

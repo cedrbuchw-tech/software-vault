@@ -8,6 +8,14 @@ const resend = resendKey ? new Resend(resendKey) : null;
 const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@resend.dev";
 
 export async function POST(req) {
+
+  // Supabase already sends its own confirmation mail on signUp. Sending a second
+  // one from here means every new account gets TWO emails. Off by default; set
+  // CUSTOM_CONFIRMATION_EMAIL=1 only if you would rather send it yourself than
+  // point Supabase's SMTP at Resend.
+  if (process.env.CUSTOM_CONFIRMATION_EMAIL !== '1') {
+    return NextResponse.json({ ok: true, info: 'handled_by_supabase' });
+  }
   // public by necessity (used before sign-in), so throttle abuse:
   // mail bombing and username enumeration both start here.
   if (!rateLimit("confirm:" + clientKey(req), 3, 300000)) return tooMany();
