@@ -2,7 +2,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
-import { useBackdropClose, useScrollLock } from "@/lib/modal_ux";
+import { useBackdropClose, useScrollLock, Portal } from "@/lib/modal_ux";
 import { loadAppearance, applyAppearance } from "@/lib/appearance";
 
 const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
@@ -582,16 +582,16 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
         {p.desc&&<p style={{fontSize:12,color:th.mut,lineHeight:1.72,flex:1,marginBottom:14,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:p.coverImage?2:3,WebkitBoxOrient:"vertical",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</p>}
         <button onClick={doLike} style={{
           width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px 0",marginBottom:8,
-          border:`2px solid ${liked?"var(--sv-accent)":"var(--sv-accent)66"}`,
+          border:`2px solid ${liked?"var(--sv-accent)":"color-mix(in srgb, var(--sv-accent) 40%, transparent)"}`,
           background:liked?"var(--sv-accent)":"transparent",
           color:liked?th.card:"var(--sv-accent)",cursor:"pointer",
           fontFamily:"'IBM Plex Mono',monospace",fontSize:12,
-          filter:`drop-shadow(2px 2px 0 ${liked?"#c5330a":"var(--sv-accent)44"})`,
+          filter:`drop-shadow(2px 2px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`,
           transition:"background .12s, border-color .12s, filter 0.1s, transform 0.1s",
         }}
-          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"var(--sv-accent)66"})`;if(!liked)e.currentTarget.style.background="var(--sv-accent)18";}}
-          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"var(--sv-accent)44"})`;if(!liked)e.currentTarget.style.background="transparent";}}
-          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"var(--sv-accent)44"})`;}}
+          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 40%, transparent)"})`;if(!liked)e.currentTarget.style.background="color-mix(in srgb, var(--sv-accent) 9%, transparent)";}}
+          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`;if(!liked)e.currentTarget.style.background="transparent";}}
+          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`;}}
           onMouseUp={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";}}>
           <span style={{fontSize:18,lineHeight:1,display:"inline-block",animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>
           <span style={{fontWeight:500}}>{(p.likes||0)>0?`${fmt.n(p.likes||0)} ${tr.lk}`:tr.lk}</span>
@@ -2374,6 +2374,7 @@ export default function Vault() {
       )}
 
       {partySecret&&(
+        <Portal>
         <div style={{position:"fixed",inset:0,background:"rgba(8,0,16,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9005,padding:20,animation:"fadeIn .25s ease",pointerEvents:"none"}}>
           <div style={{position:"relative",background:"linear-gradient(135deg,rgba(20,4,40,.98) 0%,rgba(30,10,50,.98) 100%)",border:"2px solid #ec4899",padding:"44px 40px",maxWidth:520,width:"100%",boxShadow:"0 0 0 4px rgba(236,72,153,.08),0 0 80px rgba(236,72,153,.15),inset 0 0 40px rgba(236,72,153,.05)",animation:"modalIn .4s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto",borderRadius:12}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#f1a9d0",letterSpacing:2.5,marginBottom:12,textTransform:"uppercase",fontWeight:600}}>✨ Party Mode Active</div>
@@ -2387,6 +2388,7 @@ export default function Vault() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* ALL 12 FOUND */}

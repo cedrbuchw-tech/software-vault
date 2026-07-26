@@ -644,9 +644,10 @@ function AvatarCropper({ file, th, onCancel, onConfirm, busy }) {
         <img src={url.current} alt="" draggable={false}
           style={{ position: "absolute", left: "50%", top: "50%",
                    transform: `translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) scale(${zoom})`,
-                   // "cover": the short side fills the circle, same rule the
-                   // export uses so what you see is what gets saved
-                   minWidth: "100%", minHeight: "100%",
+                   // "cover" the circle: min-width/min-height let a large photo
+                   // render at its NATURAL size (736px in a 220px window), which
+                   // is why it looked wildly zoomed. Fixed box + object-fit.
+                   width: "100%", height: "100%",
                    objectFit: "cover", userSelect: "none", pointerEvents: "none" }} />
       </div>
 
