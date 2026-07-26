@@ -20,6 +20,8 @@
 DROP POLICY IF EXISTS "Allow authenticated write" ON public.programs;
 
 DROP POLICY IF EXISTS "Allow anonymous read" ON public.programs;
+-- drop our own one too, otherwise a second run fails with 42710 "already exists"
+DROP POLICY IF EXISTS "programs_read_all" ON public.programs;
 CREATE POLICY "programs_read_all" ON public.programs
   FOR SELECT USING (true);
 
