@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
+import { useBackdropClose, useScrollLock } from "@/lib/modal_ux";
 
 const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
             dark:"vault_dark",lang:"vault_lang",sett:"vault_settings",found:"vault_found" };
@@ -444,6 +445,10 @@ function ImageUploadField({label,tip,single,images,onChange,onRemove,th,lbl,maxC
 }
 
 function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLibrary,onToggleLibrary,lt}) {
+  // a drag that merely ENDS on the backdrop must not discard the dialog, and
+  // the page behind it stays put while it is open
+  const backdrop = useBackdropClose(onClose);
+  useScrollLock();
   const [slide,setSlide]=useState(0);
   const [heartAnim,setHeartAnim]=useState(false);
   const dlPress=usePressStyle(th);
@@ -452,7 +457,7 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLib
   const catLabel=catIdx>0?(tr.cats[catIdx]||prog.cat):prog.cat;
   const doLike=()=>{if(!liked){setHeartAnim(true);setTimeout(()=>setHeartAnim(false),420);}onLike(prog.id);};
   return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:20}}>
+    <div {...backdrop} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:20}}>
       <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",boxShadow:`10px 10px 0 ${th.blk}`,animation:"fadeIn .15s ease"}}>
         {imgs.length>0&&(
           <div style={{position:"relative",background:"#000",height:300,flexShrink:0}}>
@@ -1125,6 +1130,16 @@ export default function Vault() {
     else statsTimerRef.current=setTimeout(()=>{statsClickRef.current=0;},1500);
   };
 
+  // /api/programs and /api/upload are admin-only now (they used to accept
+  // anonymous writes), so every call has to carry the caller's access token.
+  const authHeaders=async(extra={})=>{
+    try{
+      const sess=await supabase.auth.getSession();
+      const token=sess?.data?.session?.access_token;
+      return token?{...extra,Authorization:`Bearer ${token}`}:extra;
+    }catch{return extra;}
+  };
+
   const saveProgs=async l=>{
     try{
       await idbSet(K.progs,l);
@@ -1133,7 +1148,7 @@ export default function Vault() {
       try {
         const res = await fetch('/api/programs', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ programs: l }),
         });
         if (!res.ok) {
@@ -1163,6 +1178,11 @@ export default function Vault() {
     setLoginMessage("");
     setSetupEmail("");
   };
+
+  // dialogs: only a genuine click on the backdrop closes them, and the page
+  // behind stays where it is while one is open
+  const modalBackdrop = useBackdropClose(closeModal);
+  useScrollLock(!!modal);
 
   const login=async()=>{
     setPwErr("");
@@ -1205,7 +1225,7 @@ export default function Vault() {
         if(b.file){
           if(b.file.size>50_000_000){ping(o+": over 50 MB — paste a URL instead.","err");setBusy(false);return;}
           const fd=new FormData();fd.append("file",b.file);fd.append("fileName",b.file.name);fd.append("fileSize",b.file.size);
-          const res=await fetch("/api/upload",{method:"POST",body:fd});
+          const res=await fetch("/api/upload",{method:"POST",headers:await authHeaders(),body:fd});
           if(!res.ok){const e=await res.json().catch(()=>({}));ping(e.error||(o+": upload failed"),"err");setBusy(false);return;}
           const data=await res.json();
           downloads[o]={url:data.url,name:data.fileName,size:data.fileSize};
@@ -1233,7 +1253,7 @@ export default function Vault() {
         if(b.file){
           if(b.file.size>50_000_000){ping(o+": over 50 MB — paste a URL instead.","err");return;}
           const fd=new FormData();fd.append("file",b.file);fd.append("fileName",b.file.name);fd.append("fileSize",b.file.size);
-          const res=await fetch("/api/upload",{method:"POST",body:fd});
+          const res=await fetch("/api/upload",{method:"POST",headers:await authHeaders(),body:fd});
           if(!res.ok){const e=await res.json().catch(()=>({}));ping(e.error||(o+": upload failed"),"err");return;}
           const data=await res.json();
           downloads[o]={url:data.url,name:data.fileName,size:data.fileSize};
@@ -1959,7 +1979,7 @@ export default function Vault() {
       {detailProg&&<DetailModal prog={detailProg} liked={likes.includes(detailProg.id)} onLike={handleLike} inLibrary={library.includes(detailProg.id)} onToggleLibrary={handleToggleLibrary} lt={lt} onDownload={download} loadingDl={loadingDl} onClose={()=>setDetailProg(null)} th={th} tr={tr}/>}
 
       {modal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20,animation:"fadein .2s ease",backdropFilter:"blur(0px)"}} onClick={closeModal}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20,animation:"fadein .2s ease",backdropFilter:"blur(0px)"}} {...modalBackdrop}>
           {(modal==="login"||modal==="setup"||modal==="changepw")&&(
             <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:360,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .3s cubic-bezier(.22,1,.36,1) both"}}>
               <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,marginBottom:modal==="setup"?10:20,letterSpacing:.3,color:th.blk}}>{modal==="login"?tr.si:modal==="setup"?tr.sat:tr.cp}</h2>

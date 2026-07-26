@@ -17,6 +17,18 @@ function safeName(name) {
   return String(name || "download").replace(/[\r\n"\\]/g, "_").slice(0, 200);
 }
 
+function isAllowed(rawUrl) {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return false;
+  try {
+    const target = new URL(rawUrl);
+    const allowed = new URL(base);
+    return target.protocol === "https:" && target.hostname === allowed.hostname;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -25,6 +37,14 @@ export async function GET(req) {
 
     if (!fileUrl) {
       return NextResponse.json({ error: "Missing file URL" }, { status: 400 });
+    }
+
+    // Only ever fetch from this project's own Supabase storage. Without this
+    // the route is a server-side request forgery hole: anyone could pass an
+    // internal address (cloud metadata, a private host) and have the server
+    // fetch it for them and hand back the body.
+    if (!isAllowed(fileUrl)) {
+      return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
     }
 
     // pass the client's Range straight through to storage

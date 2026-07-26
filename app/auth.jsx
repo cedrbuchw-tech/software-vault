@@ -7,6 +7,7 @@
 // from lib/vault_client (sessions persist + refresh automatically in the browser).
 
 import { useState, useEffect } from "react";
+import { useBackdropClose, useScrollLock } from "@/lib/modal_ux";
 import { supabase } from "@/lib/vault_client";
 
 // ---- translations (same 8 languages as the site) ---------------------------
@@ -235,6 +236,15 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
   const [open, setOpen] = useState(false);
   const [acct, setAcct] = useState(false);
 
+  // Arriving from a password-reset mail must land on the "choose a new
+  // password" screen instead of silently dropping you on the homepage.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const h = window.location.hash || "";
+    const q = window.location.search || "";
+    if (h.includes("type=recovery") || q.includes("type=recovery")) setOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!_authBus) return;
     const h = () => setOpen(true);
@@ -289,11 +299,31 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
 }
 
 // ---- login / signup modal --------------------------------------------------
+// Supabase sends people back from a password-reset mail with the tokens in the
+// URL fragment and type=recovery. supabase-js consumes the fragment to create a
+// session, but nothing used to notice WHY they arrived — so the link just
+// dropped you on the homepage with no way to set a new password.
+function isRecoveryLink() {
+  if (typeof window === "undefined") return false;
+  const hash = window.location.hash || "";
+  const query = window.location.search || "";
+  return hash.includes("type=recovery") || query.includes("type=recovery");
+}
+
 function AuthModal({ lang, th, onClose }) {
   const t = T(lang);
-  const [mode, setMode] = useState("in");   // "in" = sign in, "up" = create account, "reset" = reset pw
+  // "in" = sign in, "up" = create account, "reset" = ask for a reset mail,
+  // "newpw" = arrived from a reset link and must choose a new password
+  const [mode, setMode] = useState(() => (isRecoveryLink() ? "newpw" : "in"));
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [code2fa, setCode2fa] = useState("");
+
+  // a drag ending on the backdrop must not throw away what was typed; and the
+  // page behind the dialog shouldn't scroll while it's open
+  const backdrop = useBackdropClose(onClose);
+  useScrollLock();
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -303,7 +333,20 @@ function AuthModal({ lang, th, onClose }) {
     if (busy) return;
     setErr(""); setMsg(""); setBusy(true);
     try {
-      if (mode === "reset") {
+      if (mode === "newpw") {
+        if (pw.length < 8) throw new Error("Password must be at least 8 characters.");
+        if (pw !== pw2) throw new Error("The two passwords don't match.");
+        // the recovery link already established a session, so this updates the
+        // password of the account that link belonged to
+        const { error } = await supabase.auth.updateUser({ password: pw });
+        if (error) throw error;
+        // drop the tokens out of the address bar once they've been used
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+        setMsg("Password updated — you're signed in.");
+        setTimeout(() => { onClose && onClose(); }, 1500);
+      } else if (mode === "reset") {
         const resolvedEmail = await resolveEmail(email);
         const { error } = await supabase.auth.resetPasswordForEmail(resolvedEmail, {
           redirectTo: `${window.location.origin}`,
@@ -350,10 +393,34 @@ function AuthModal({ lang, th, onClose }) {
             setErr("Your account was created, but the confirmation email could not be sent. Please try again shortly.");
           }
         } else onClose();                                   // confirmation off → logged in
+      } else if (mode === "mfa") {
+        // second step of sign-in: the password already produced an aal1 session,
+        // and this lifts it to aal2. Anything guarded by aal2 stays out of reach
+        // until this succeeds — the auth server decides that, not this page.
+        const { data: factors, error: fErr } = await supabase.auth.mfa.listFactors();
+        if (fErr) throw fErr;
+        const totp = (factors?.totp || []).find((f) => f.status === "verified");
+        if (!totp) throw new Error("No authenticator is set up for this account.");
+        const { error } = await supabase.auth.mfa.challengeAndVerify({
+          factorId: totp.id,
+          code: code2fa.trim(),
+        });
+        if (error) throw error;
+        onClose();
       } else {
         const resolvedEmail = await resolveEmail(email);
         const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password: pw });
         if (error) throw error;
+
+        // Does this account still owe a second factor? Supabase answers with the
+        // level the session HAS versus the level it COULD reach.
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+          setMode("mfa");
+          setPw("");
+          setBusy(false);
+          return;
+        }
         onClose();
       }
     } catch (e) {
@@ -374,7 +441,7 @@ function AuthModal({ lang, th, onClose }) {
   };
 
   return (
-    <div onClick={onClose}
+    <div {...backdrop}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
                display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
@@ -384,7 +451,9 @@ function AuthModal({ lang, th, onClose }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <strong style={{ fontSize: 16 }}>
-            {mode === "reset" ? t.reset : (mode === "up" ? t.up_ : t.in_)}
+            {mode === "mfa" ? "Two-factor code"
+              : mode === "newpw" ? "Set a new password"
+              : mode === "reset" ? t.reset : (mode === "up" ? t.up_ : t.in_)}
           </strong>
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
         </div>
@@ -397,18 +466,40 @@ function AuthModal({ lang, th, onClose }) {
               <input value={username} onChange={(e) => setUsername(e.target.value)}
                 name="username" placeholder={t.user} autoComplete="username" style={input} maxLength={24} />
             )}
-            {mode !== "up" && (
+            {mode === "mfa" && (
+              <>
+                <p style={{ fontSize: 11, opacity: .75, margin: "0 0 10px" }}>
+                  Enter the 6-digit code from your authenticator app.
+                </p>
+                <input value={code2fa} onChange={(e) => setCode2fa(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  name="otp" placeholder="000000" inputMode="numeric" autoComplete="one-time-code"
+                  maxLength={6} autoFocus style={{ ...input, letterSpacing: 4, textAlign: "center" }}
+                  onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+              </>
+            )}
+            {mode !== "up" && mode !== "newpw" && mode !== "mfa" && (
               <input value={email} onChange={(e) => setEmail(e.target.value)}
                 name="emailOrUsername" placeholder={t.emailOrUsername || t.email} type="text" autoComplete="username" style={input} />
+            )}
+            {mode === "newpw" && (
+              <p style={{ fontSize: 11, opacity: .75, margin: "0 0 10px" }}>
+                Choose a new password for your account.
+              </p>
             )}
             {mode === "up" && (
               <input value={email} onChange={(e) => setEmail(e.target.value)}
                 name="email" placeholder={t.email} type="email" autoComplete="email" style={input} />
             )}
-            {mode !== "reset" && (
+            {mode !== "reset" && mode !== "mfa" && (
               <input value={pw} onChange={(e) => setPw(e.target.value)}
                 name="password" placeholder={t.pass} type="password"
-                autoComplete={mode === "up" ? "new-password" : "current-password"} style={input}
+                autoComplete={mode === "up" || mode === "newpw" ? "new-password" : "current-password"} style={input}
+                onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+            )}
+            {mode === "newpw" && (
+              <input value={pw2} onChange={(e) => setPw2(e.target.value)}
+                name="password2" placeholder="Repeat new password" type="password"
+                autoComplete="new-password" style={input}
                 onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
             )}
 
@@ -418,7 +509,9 @@ function AuthModal({ lang, th, onClose }) {
               style={{ width: "100%", padding: 10, background: th.org, color: "#fff",
                        border: th.bdr, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
                        fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600 }}>
-              {busy ? "…" : (mode === "reset" ? t.reset : (mode === "up" ? t.up_ : t.in_))}
+              {busy ? "…" : (mode === "mfa" ? "Verify"
+                : mode === "newpw" ? "Save new password"
+                : mode === "reset" ? t.reset : (mode === "up" ? t.up_ : t.in_))}
             </button>
 
             <div style={{ textAlign: "center", marginTop: 12 }}>
@@ -458,6 +551,8 @@ function AuthModal({ lang, th, onClose }) {
 
 // ---- account modal (change username + sign out) ----------------------------
 function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked, partyMode, onTogglePartyMode }) {
+  const backdrop = useBackdropClose(onClose);
+  useScrollLock();
   const t = T(lang);
   const at = AT(lang);
   const current = displayName(user, profile);
@@ -471,33 +566,46 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const [secret, setSecret] = useState("");
   const [code2fa, setCode2fa] = useState("");
   const [verify2faBusy, setVerify2faBusy] = useState(false);
+  const [factorId, setFactorId] = useState("");
   const [customSettings, setCustomSettings] = useState({
     brightness: localStorage.getItem("brightness") || "light",
     buttonStyle: localStorage.getItem("buttonStyle") || "edgy",
   });
 
   useEffect(() => {
-    // Check 2FA status
-    supabase.from("profiles").select("two_fa_enabled").eq("id", user.id).single()
-      .then(({ data }) => { if (data?.two_fa_enabled) setTwofa(true); })
+    // 2FA now lives in Supabase's own MFA system, so ask it which factors the
+    // account actually has instead of trusting a flag in our profiles table.
+    supabase.auth.mfa.listFactors()
+      .then(({ data }) => {
+        const verified = (data?.totp || []).find((f) => f.status === "verified");
+        setTwofa(!!verified);
+        setFactorId(verified?.id || "");
+      })
       .catch(() => {});
   }, [user.id]);
 
   async function initiate2fa() {
     setErr(""); setBusy(true);
     try {
-      const res = await fetch("/api/auth/2fa/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+      // clear out any half-finished enrolment from an earlier attempt, otherwise
+      // Supabase refuses with "factor already exists"
+      const { data: existing } = await supabase.auth.mfa.listFactors();
+      for (const f of (existing?.totp || [])) {
+        if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
+      }
+
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "SoftwareVault " + Date.now(),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed");
-      setSecret(data.secret);
-      setQrCode(data.qrCode);
+      if (error) throw error;
+
+      setFactorId(data.id);
+      setQrCode(data.totp.qr_code);   // Supabase returns a ready-made SVG data URI
+      setSecret(data.totp.secret);    // shown for manual entry
       setSetup2fa(true);
     } catch (e) {
-      setErr(at.uerr);
+      setErr(e?.message || at.uerr);
     } finally {
       setBusy(false);
     }
@@ -507,13 +615,12 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
     if (!code2fa || code2fa.length !== 6) return;
     setErr(""); setVerify2faBusy(true);
     try {
-      const res = await fetch("/api/auth/2fa/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, code: code2fa, secret: secret }),
+      // proves the authenticator works AND lifts this session to aal2
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId,
+        code: code2fa,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed");
+      if (error) throw error;
       setMsg(at.updated);
       setTwofa(true);
       setSetup2fa(false);
@@ -521,7 +628,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
       setSecret("");
       setQrCode("");
     } catch (e) {
-      setErr("Invalid code");
+      setErr(e?.message || "Invalid code");
     } finally {
       setVerify2faBusy(false);
     }
@@ -529,18 +636,18 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
 
   async function disable2fa() {
     if (!confirm("Disable 2FA?")) return;
-    setBusy(true);
+    setErr(""); setBusy(true);
     try {
-      const res = await fetch("/api/auth/2fa/disable", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
-      });
-      if (!res.ok) throw new Error("Failed");
+      const { data } = await supabase.auth.mfa.listFactors();
+      for (const f of (data?.totp || [])) {
+        const { error } = await supabase.auth.mfa.unenroll({ factorId: f.id });
+        if (error) throw error;
+      }
       setMsg(at.updated);
       setTwofa(false);
+      setFactorId("");
     } catch (e) {
-      setErr(at.uerr);
+      setErr(e?.message || at.uerr);
     } finally {
       setBusy(false);
     }
@@ -582,7 +689,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const label = { fontSize: 11, color: th.blk, opacity: 0.7, margin: "0 0 4px" };
 
   return (
-    <div onClick={onClose}
+    <div {...backdrop}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
                display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}

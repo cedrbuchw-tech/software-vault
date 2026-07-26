@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local development journal and assistant tooling — not published
+PROJECT_NOTES.md
+CLAUDE.md
+AGENTS.md
+.vault-settings.json

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/api_auth";
 import { getServiceClient } from "@/lib/vault_client";
 
 const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -39,7 +40,14 @@ export async function GET(req) {
 }
 
 // POST /api/programs - save all programs
+// Writing the catalogue is admin-only. This route had NO authentication at all:
+// anyone who knew the URL could POST a replacement programs array and wipe or
+// rewrite the entire catalogue. It was left open because the download counter
+// used it from the browser — that now goes through /api/downloads instead.
 export async function POST(req) {
+  const auth = await requireAdmin(req);
+  if (auth.response) return auth.response;
+
   if (!SUPABASE_ENABLED) return NextResponse.json({ ok: true });
 
   try {

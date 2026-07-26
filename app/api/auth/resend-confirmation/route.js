@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rateLimit, clientKey, tooMany } from "@/lib/api_auth";
 import { Resend } from "resend";
 import { getServiceClient } from "@/lib/vault_client";
 
@@ -7,6 +8,9 @@ const resend = resendKey ? new Resend(resendKey) : null;
 const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@resend.dev";
 
 export async function POST(req) {
+  // public by necessity (used before sign-in), so throttle abuse:
+  // mail bombing and username enumeration both start here.
+  if (!rateLimit("confirm:" + clientKey(req), 3, 300000)) return tooMany();
   try {
     if (!resend) {
       return NextResponse.json({ ok: false, error: "Email service not configured", info: "resend_missing" }, { status: 500 });
