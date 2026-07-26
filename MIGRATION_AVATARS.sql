@@ -5,8 +5,13 @@
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS avatar_url text;
 
--- MIGRATION_SECURITY.sql revoked the blanket table privileges and grants columns
--- back by name, so the new column has to be added to both lists explicitly.
+-- Privileges are owned by MIGRATION_SECURITY.sql, which lists every readable and
+-- owner-writable column in one place and rebuilds the grants from the columns
+-- that actually exist. Granting here as well caused a nasty trap: re-running the
+-- security migration afterwards wiped these, and saving a picture started failing
+-- with "permission denied for table profiles".
+--
+-- So: after adding this column, run MIGRATION_SECURITY.sql once more.
 GRANT SELECT (avatar_url) ON public.profiles TO anon, authenticated;
 GRANT UPDATE (avatar_url) ON public.profiles TO authenticated;
 

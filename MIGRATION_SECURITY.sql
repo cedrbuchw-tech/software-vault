@@ -49,29 +49,44 @@ REVOKE INSERT, UPDATE, DELETE ON public.programs FROM anon, authenticated;
 
 DO $$
 DECLARE
-  readable text[] := ARRAY['id', 'username', 'is_admin', 'created_at',
-                           'two_fa_enabled', 'email_2fa_enabled'];
-  cols text;
+  -- Columns anyone may READ. Anything not listed here (2FA secrets) stays
+  -- unreadable. Built from what exists, so this file survives being run before
+  -- or after the migrations that add columns.
+  readable text[] := ARRAY['id', 'username', 'avatar_url', 'is_admin',
+                           'created_at', 'two_fa_enabled', 'email_2fa_enabled'];
+
+  -- Columns the owner may WRITE. Deliberately short: never is_admin (self
+  -- promotion) and never a 2FA column (switching off your own second factor).
+  writable text[] := ARRAY['username', 'avatar_url'];
+
+  read_cols  text;
+  write_cols text;
 BEGIN
-  -- 1. drop the blanket table-level rights
+  -- A column-level REVOKE does nothing while the role still holds the privilege
+  -- at TABLE level, and Supabase grants that by default — so clear it first.
   REVOKE SELECT, UPDATE ON public.profiles FROM anon, authenticated;
 
-  -- 2. hand back only the columns that are safe to read
   SELECT string_agg(quote_ident(column_name), ', ')
-    INTO cols
+    INTO read_cols
     FROM information_schema.columns
    WHERE table_schema = 'public' AND table_name = 'profiles'
      AND column_name = ANY(readable);
 
-  IF cols IS NOT NULL THEN
-    EXECUTE format('GRANT SELECT (%s) ON public.profiles TO anon, authenticated', cols);
-    RAISE NOTICE 'profiles readable columns: %', cols;
+  IF read_cols IS NOT NULL THEN
+    EXECUTE format('GRANT SELECT (%s) ON public.profiles TO anon, authenticated', read_cols);
+    RAISE NOTICE 'profiles readable: %', read_cols;
   END IF;
 
-  -- 3. the only thing a user may change about their own row is the username.
-  --    is_admin and every 2FA column stay service-role only, so nobody can
-  --    promote themselves or switch their own second factor off.
-  GRANT UPDATE (username) ON public.profiles TO authenticated;
+  SELECT string_agg(quote_ident(column_name), ', ')
+    INTO write_cols
+    FROM information_schema.columns
+   WHERE table_schema = 'public' AND table_name = 'profiles'
+     AND column_name = ANY(writable);
+
+  IF write_cols IS NOT NULL THEN
+    EXECUTE format('GRANT UPDATE (%s) ON public.profiles TO authenticated', write_cols);
+    RAISE NOTICE 'profiles writable by owner: %', write_cols;
+  END IF;
 END $$;
 
 
