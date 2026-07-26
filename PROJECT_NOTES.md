@@ -2,6 +2,30 @@
 
 ## Status: Live Next.js + Supabase site. Per-OS downloads + launcher auto-pick (Session 41); personal library "My Apps" + launcher API (Session 39); files consolidated (Session 38); per-account likes (Session 37); user accounts (Session 36); web-tagged "Open" (Session 35).
 
+## Session 99 (2026-07-26) — confirmation emails never sent + favicon matched to the logo
+- **Signup emails: root cause found.** Every mail route falls back to
+  `process.env.RESEND_FROM_EMAIL || "noreply@resend.dev"`. `RESEND_FROM_EMAIL` is
+  NOT set in Cedric's `.env.local` (only URL, ANON, SERVICE_ROLE, ADMIN_SECRET,
+  RESEND_API_KEY), so every mail is attempted from a resend.dev address the
+  project doesn't own — Resend rejects that, and nothing arrives. `.env.example`
+  has listed the variable all along; it was simply never filled in. **The actual
+  fix is config, not code: set RESEND_FROM_EMAIL locally and in Vercel to an
+  address on the domain verified in Resend (see RESEND_NAMECHEAP_SETUP.md).**
+- **Why it looked like nothing happened.** `auth.jsx` fired the confirmation
+  request inside `try { … } catch { /* Silently ignore */ }` and never checked
+  the response, so the UI showed "check your email" no matter what. It now reads
+  the reply and reports what went wrong — a missing sender config, an email that
+  is already registered (with the recovery-mail case handled), or the raw error.
+- `resend-confirmation` returns `info: "resend_from_missing"` immediately when the
+  sender is unset, instead of attempting a send that is guaranteed to fail.
+- **Favicon now matches the header logo exactly.** It was a different crosshair in
+  `#f97316`; it is now the same geometry as the SVG in `app/page.jsx` — same
+  viewBox, same rings, ticks and corner dots, the brand `#e03d0c`, and the glow
+  filter on the centre dot. The middle ring uses a neutral grey (the page version
+  binds to the theme colour, which a standalone icon file can't do).
+- Verified: both routes pass `node --check`, `auth.jsx` parses with the project's Babel,
+  favicon parses as XML and contains no leftover `#f97316`.
+
 ## Session 98 (2026-07-25) — the site and VaultLaunch now fit together properly
 Merged Cedric's newer website (2FA, /api/auth/*, welcome mail) with the newer
 launcher, then closed the gaps between them.

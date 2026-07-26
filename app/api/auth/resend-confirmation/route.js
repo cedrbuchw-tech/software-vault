@@ -12,6 +12,18 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: "Email service not configured", info: "resend_missing" }, { status: 500 });
     }
 
+    // Without a verified sender we would fall back to noreply@resend.dev — a
+    // domain this project does not own, which Resend refuses to send from. That
+    // failure is invisible to the user (the mail simply never arrives), so say
+    // plainly what is missing instead. See RESEND_NAMECHEAP_SETUP.md.
+    if (!process.env.RESEND_FROM_EMAIL) {
+      return NextResponse.json({
+        ok: false,
+        info: "resend_from_missing",
+        error: "RESEND_FROM_EMAIL is not set, so no confirmation mail can be sent.",
+      }, { status: 500 });
+    }
+
     const { email, redirectTo } = await req.json().catch(() => ({}));
     if (!email || typeof email !== "string") {
       return NextResponse.json({ ok: false, error: "Missing email" }, { status: 400 });

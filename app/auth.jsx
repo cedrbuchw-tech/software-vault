@@ -325,13 +325,29 @@ function AuthModal({ lang, th, onClose }) {
           const sentTo = data?.user?.email || actualEmail;
           setMsg(t.check);
           try {
-            await fetch('/api/auth/resend-confirmation', {
+            const res = await fetch('/api/auth/resend-confirmation', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: sentTo, redirectTo: window.location.origin }),
             });
+            const info = await res.json().catch(() => ({}));
+            // Never leave someone waiting for a mail that was never sent: if the
+            // send failed, say so instead of showing "check your inbox".
+            if (!res.ok || info.ok === false) {
+              setMsg("");
+              if (info.info === 'email_exists') {
+                setErr("That email is already registered — try signing in instead.");
+              } else if (info.info === 'resend_missing' || info.info === 'resend_from_missing') {
+                setErr("Your account was created, but confirmation email is not configured yet. Ask the admin to set RESEND_FROM_EMAIL.");
+              } else {
+                setErr("Your account was created, but the confirmation email could not be sent: " + (info.error || "unknown error"));
+              }
+            } else if (info.info === 'recovery_sent') {
+              setMsg("That email already has an account — we sent a password reset link instead.");
+            }
           } catch (e) {
-            // Silently ignore
+            setMsg("");
+            setErr("Your account was created, but the confirmation email could not be sent. Please try again shortly.");
           }
         } else onClose();                                   // confirmation off → logged in
       } else {

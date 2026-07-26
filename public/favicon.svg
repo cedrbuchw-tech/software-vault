@@ -1,7 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <circle cx="64" cy="64" r="50" fill="none" stroke="#f97316" stroke-width="12"/>
-  <circle cx="64" cy="64" r="24" fill="none" stroke="#f97316" stroke-width="10"/>
-  <circle cx="64" cy="64" r="8" fill="#f97316"/>
-  <path d="M64 8V28M64 100V120M8 64H28M100 64H120" stroke="#f97316" stroke-width="12" stroke-linecap="round"/>
-  <path d="M64 20V40M64 88V108M20 64H40M88 64H108" stroke="#f97316" stroke-width="8" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Identical geometry to the header logo in app/page.jsx: a crosshair in
+       the site's burnt orange (#e03d0c), with a glowing centre dot. -->
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="16" cy="16" r="14.5" stroke="#e03d0c" stroke-width="2.5" opacity="0.9"/>
+  <circle cx="16" cy="16" r="10" stroke="#8a8a8a" stroke-width="1" opacity="0.25"/>
+  <circle cx="16" cy="16" r="3.5" fill="#e03d0c" filter="url(#glow)"/>
+  <line x1="16" y1="5" x2="16" y2="10.5" stroke="#e03d0c" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <line x1="16" y1="21.5" x2="16" y2="27" stroke="#e03d0c" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <line x1="5" y1="16" x2="10.5" y2="16" stroke="#e03d0c" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <line x1="21.5" y1="16" x2="27" y2="16" stroke="#e03d0c" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="16" cy="4.5" r="1.8" fill="#e03d0c" opacity="0.7"/>
+  <circle cx="27.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
+  <circle cx="4.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
 </svg>
