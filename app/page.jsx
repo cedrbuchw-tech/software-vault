@@ -586,12 +586,12 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
           background:liked?"var(--sv-accent)":"transparent",
           color:liked?th.card:"var(--sv-accent)",cursor:"pointer",
           fontFamily:"'IBM Plex Mono',monospace",fontSize:12,
-          filter:`drop-shadow(2px 2px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`,
+          filter:`drop-shadow(2px 2px 0 ${liked?"color-mix(in srgb, var(--sv-accent) 78%, black)":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`,
           transition:"background .12s, border-color .12s, filter 0.1s, transform 0.1s",
         }}
-          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 40%, transparent)"})`;if(!liked)e.currentTarget.style.background="color-mix(in srgb, var(--sv-accent) 9%, transparent)";}}
-          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`;if(!liked)e.currentTarget.style.background="transparent";}}
-          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`;}}
+          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"color-mix(in srgb, var(--sv-accent) 78%, black)":"color-mix(in srgb, var(--sv-accent) 40%, transparent)"})`;if(!liked)e.currentTarget.style.background="color-mix(in srgb, var(--sv-accent) 9%, transparent)";}}
+          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"color-mix(in srgb, var(--sv-accent) 78%, black)":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`;if(!liked)e.currentTarget.style.background="transparent";}}
+          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"color-mix(in srgb, var(--sv-accent) 78%, black)":"color-mix(in srgb, var(--sv-accent) 27%, transparent)"})`;}}
           onMouseUp={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";}}>
           <span style={{fontSize:18,lineHeight:1,display:"inline-block",animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>
           <span style={{fontWeight:500}}>{(p.likes||0)>0?`${fmt.n(p.likes||0)} ${tr.lk}`:tr.lk}</span>
@@ -2162,14 +2162,14 @@ export default function Vault() {
       {secret3&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           {[0,.5,1].map(d=><div key={d} style={{position:"absolute",borderRadius:"50%",width:240,height:240,border:"1px solid rgba(255,140,0,.4)",pointerEvents:"none",animation:`radarPing 2.4s ease-out ${d}s infinite`}}/>)}
-          <div style={{position:"relative",zIndex:10,background:"#0d0a06",border:"2px solid #ff8c00",padding:"40px 44px",maxWidth:460,width:"100%",boxShadow:"0 0 80px rgba(255,140,0,.15),8px 8px 0 var(--sv-accent)",animation:"modalIn .28s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
+          <div style={{position:"relative",zIndex:10,background:"#0d0a06",border:"2px solid color-mix(in srgb, var(--sv-accent) 75%, yellow)",padding:"40px 44px",maxWidth:460,width:"100%",boxShadow:"0 0 80px rgba(255,140,0,.15),8px 8px 0 var(--sv-accent)",animation:"modalIn .28s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#ff8c00",letterSpacing:2,animation:"scanPulse 1.6s ease infinite"}}>◉ SIGNAL DETECTED</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#ff8c00",opacity:.4,letterSpacing:2}}>SECRET 03/12</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",letterSpacing:2,animation:"scanPulse 1.6s ease infinite"}}>◉ SIGNAL DETECTED</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",opacity:.4,letterSpacing:2}}>SECRET 03/12</span>
             </div>
-            <div style={{fontFamily:"'Anton',sans-serif",fontSize:56,fontWeight:400,color:"#ff8c00",lineHeight:1,marginBottom:20,letterSpacing:.5,animation:"vaultReveal .5s ease both"}}>FOUND<br/>ONE.</div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:56,fontWeight:400,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",lineHeight:1,marginBottom:20,letterSpacing:.5,animation:"vaultReveal .5s ease both"}}>FOUND<br/>ONE.</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a55",lineHeight:1.9,marginBottom:18}}>{`the vault sees those who repeat. it has revealed a layer.<br/>now look at what sits largest. what commands the page.<br/>place your hand upon it. not in clicking. in lingering. in pressure. make the vault listen through your stillness.`}</p>
-            <SecretDownloadCard dl={getSd(3)} accentColor="#ff8c00" textColor="#e8d0aa" bgColor="rgba(255,140,0,.04)" borderColor="rgba(255,140,0,.18)"/>
+            <SecretDownloadCard dl={getSd(3)} accentColor="color-mix(in srgb, var(--sv-accent) 75%, yellow)" textColor="#e8d0aa" bgColor="rgba(255,140,0,.04)" borderColor="rgba(255,140,0,.18)"/>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#4a3a25",letterSpacing:1}}>SIG/NOISE: 47.3dB · {new Date().toISOString().slice(0,19).replace("T"," ")}Z</div>
           </div>
         </div>

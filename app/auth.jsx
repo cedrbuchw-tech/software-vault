@@ -885,8 +885,14 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
     if (name === current) { setMsg(at.updated); return; }
     setErr(""); setMsg(""); setBusy(true);
     try {
-      const { error } = await supabase.from("profiles")
-        .upsert({ id: user.id, username: name }, { onConflict: "id" });
+      // same reason as the avatar: an upsert would try to write `id`, which
+      // this account may not update. Update, then insert if there is no row.
+      let { data: rows, error } = await supabase.from("profiles")
+        .update({ username: name }).eq("id", user.id).select("id");
+      if (!error && (!rows || rows.length === 0)) {
+        ({ error } = await supabase.from("profiles")
+          .insert({ id: user.id, username: name }));
+      }
       if (error) {
         if (error.code === "23505" || /duplicate|unique/i.test(error.message || "")) {
           setErr(at.taken); setBusy(false); return;

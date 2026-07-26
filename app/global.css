@@ -475,3 +475,25 @@ html[data-motion="reduced"] *::after {
         transition-duration: 0.001ms !important;
     }
 }
+
+/* Rounded corners must include the dropdown arrow.
+   A native <select> draws its own square arrow button, which kept a hard corner
+   sticking out of an otherwise rounded control. Replacing the native appearance
+   with our own arrow makes the whole control follow the radius. */
+html[data-corners="smooth"] select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+
+/* Same for anything that expands on hover — keep the radius on every corner. */
+html[data-corners="smooth"] select,
+html[data-corners="smooth"] select:hover,
+html[data-corners="smooth"] select:focus {
+    border-radius: var(--sv-radius);
+    overflow: hidden;
+}
