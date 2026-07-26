@@ -497,3 +497,34 @@ html[data-corners="smooth"] select:focus {
     border-radius: var(--sv-radius);
     overflow: hidden;
 }
+
+/* Font choice. The page hard-codes IBM Plex Mono in inline styles, so this has
+   to override them — the one place !important is genuinely warranted. */
+html[data-font="sans"] body,
+html[data-font="sans"] body * {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Higher contrast for readability: lift the muted greys and thicken borders. */
+html[data-contrast="high"] body {
+    --sv-radius: var(--sv-radius);
+}
+html[data-contrast="high"] p,
+html[data-contrast="high"] span,
+html[data-contrast="high"] div {
+    opacity: 1 !important;
+}
+html[data-contrast="high"] body {
+    text-shadow: none;
+}
+
+/* Let people switch off the corruption/glitch visuals entirely — some find the
+   shaking and colour shifts unpleasant, and it also makes text hard to read. */
+html[data-glitch="off"] #sv-root {
+    filter: none !important;
+    transform: none !important;
+    animation: none !important;
+}
+html[data-glitch="off"] .glitchy {
+    animation: none !important;
+}

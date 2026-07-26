@@ -718,7 +718,9 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const [factorId, setFactorId] = useState("");
   const [emailTwofa, setEmailTwofa] = useState(false);
   const [otpauth, setOtpauth] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
+  // seed from what the header already fetched, so the picture is there on the
+  // first frame instead of waiting for another round trip
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const fileRef = useRef(null);
@@ -736,11 +738,15 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   useEffect(() => {
     // 2FA now lives in Supabase's own MFA system, so ask it which factors the
     // account actually has instead of trusting a flag in our profiles table.
-    supabase.from("profiles").select("email_2fa_enabled, avatar_url").eq("id", user.id).single()
-      .then(({ data }) => {
-        setEmailTwofa(!!data?.email_2fa_enabled);
-        setAvatarUrl(data?.avatar_url || "");
-      })
+    // Asked separately on purpose. Selecting a column the account may not read
+    // fails the WHOLE query, and this used to swallow that — so if
+    // email_2fa_enabled wasn't granted (it is added by a later migration than the
+    // one that builds the grant list) the picture silently vanished along with it.
+    supabase.from("profiles").select("avatar_url").eq("id", user.id).single()
+      .then(({ data }) => setAvatarUrl(data?.avatar_url || ""))
+      .catch(() => {});
+    supabase.from("profiles").select("email_2fa_enabled").eq("id", user.id).single()
+      .then(({ data }) => setEmailTwofa(!!data?.email_2fa_enabled))
       .catch(() => {});
     supabase.auth.mfa.listFactors()
       .then(({ data }) => {
@@ -919,6 +925,16 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
     textDecoration: "underline", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, padding: 0,
   };
   const label = { fontSize: 11, color: th.blk, opacity: 0.7, margin: "0 0 4px" };
+  // group related controls so a long settings list reads as sections rather
+  // than one undifferentiated column
+  const section = {
+    border: `1px solid ${th.blk}22`, padding: 14, marginBottom: 14,
+    background: `${th.blk}08`,
+  };
+  const sectionTitle = {
+    fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
+    opacity: 0.75, margin: "0 0 10px",
+  };
 
   return (
     <Portal>
@@ -996,8 +1012,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
         <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
 
         {/* 2FA Section */}
-        <div>
-          <p style={{ ...label, marginBottom: 8 }}>{at.twofa}</p>
+        <div style={section}>
+          <p style={sectionTitle}>{at.twofa}</p>
           {setup2fa ? (
             <div style={{ fontSize: 12, marginBottom: 12 }}>
               {qrCode && (
@@ -1093,9 +1109,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
         </div>
 
         {user && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
-            <p style={{ ...label, marginBottom: 8 }}>Party mode</p>
+          <div style={section}>
+            <p style={sectionTitle}>Party mode</p>
             {partyUnlocked ? (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <button onClick={() => onTogglePartyMode(!partyMode)}
@@ -1119,8 +1134,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
         <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
 
         {/* Appearance — every option here is actually applied (lib/appearance.js) */}
-        <div>
-          <p style={{ ...label, marginBottom: 8 }}>Appearance</p>
+        <div style={section}>
+          <p style={sectionTitle}>Appearance</p>
 
           <div style={{ marginBottom: 12 }}>
             <p style={{ fontSize: 11, marginBottom: 4 }}>Corners</p>
@@ -1178,9 +1193,39 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
             "reduce motion" setting is respected automatically.
           </p>
 
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 11, marginBottom: 4 }}>Typeface</p>
+            <select value={appearance.font}
+              onChange={(e) => updateAppearance({ font: e.target.value })}
+              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
+              <option value="mono">Monospace (default)</option>
+              <option value="sans">Sans-serif (easier to read)</option>
+            </select>
+          </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
+                          cursor: "pointer", marginBottom: 8 }}>
+            <input type="checkbox" checked={appearance.contrast === "high"}
+              onChange={(e) => updateAppearance({ contrast: e.target.checked ? "high" : "normal" })}
+              style={{ width: 14, height: 14, cursor: "pointer", accentColor: th.org }} />
+            Higher contrast
+          </label>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
+                          cursor: "pointer", marginBottom: 4 }}>
+            <input type="checkbox" checked={appearance.glitch === "off"}
+              onChange={(e) => updateAppearance({ glitch: e.target.checked ? "off" : "on" })}
+              style={{ width: 14, height: 14, cursor: "pointer", accentColor: th.org }} />
+            Turn off glitch effects
+          </label>
+          <p style={{ fontSize: 10, opacity: .6, margin: "0 0 10px", lineHeight: 1.5 }}>
+            Stops the screen shaking and colour-shifting as corruption rises.
+          </p>
+
           <button onClick={() => updateAppearance({ corners: "edgy", accent: "#e03d0c",
                                                    textSize: "normal", motion: "full",
-                                                   density: "normal" })}
+                                                   density: "normal", font: "mono",
+                                                   contrast: "normal", glitch: "on" })}
             style={{ ...linkBtn, marginTop: 4 }}>
             Reset appearance
           </button>
