@@ -27,7 +27,7 @@ function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
     <div style={{display:"flex",flexWrap:"wrap",gap:6,...(full?{flex:1}:{width:"100%"})}}>
       {avail.map(o => (
         <button key={o.id} onClick={(e)=>{e.stopPropagation();onDownload(prog,o.id);}}
-          style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",padding:"9px 8px",flex:"1 1 auto",letterSpacing:.3}}>
+          style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:"var(--sv-accent)",color:th.card,border:th.bdr,cursor:"pointer",padding:"9px 8px",flex:"1 1 auto",letterSpacing:.3}}>
           {busy?tr.loading:("↓ "+o.l)}
         </button>
       ))}
@@ -312,11 +312,11 @@ const TR = {
 };
 
 const THEMES = {
-  light:{bg:"#f0ece0",card:"#ffffff",blk:"#111111",mut:"#999990",org:"#e03d0c",
+  light:{bg:"#f0ece0",card:"#ffffff",blk:"#111111",mut:"#999990",org:"var(--sv-accent)",
     shd:"4px 4px 0 #111111",sh2:"2px 2px 0 #111111",bdr:"2px solid #111111",
     inputBg:"#ffffff",div:"#e0dbd0",heroBg:"#ffffff",
     annC:{info:{bg:"#dbeafe",b:"#93c5fd",t:"#1e3a8a"},warning:{bg:"#fef3c7",b:"#fbbf24",t:"#92400e"},update:{bg:"#d1fae5",b:"#34d399",t:"#065f46"}}},
-  dark:{bg:"#141414",card:"#1c1c1c",blk:"#e8e4d8",mut:"#666660",org:"#e03d0c",
+  dark:{bg:"#141414",card:"#1c1c1c",blk:"#e8e4d8",mut:"#666660",org:"var(--sv-accent)",
     shd:"4px 4px 0 #555",sh2:"2px 2px 0 #444",bdr:"2px solid #e8e4d8",
     inputBg:"#252525",div:"#2a2a2a",heroBg:"#141414",
     annC:{info:{bg:"#1e3a5f",b:"#3b82f6",t:"#93c5fd"},warning:{bg:"#451a03",b:"#f59e0b",t:"#fde68a"},update:{bg:"#064e3b",b:"#10b981",t:"#a7f3d0"}}},
@@ -384,7 +384,7 @@ function OsToggle({val,onChange,th}) {
 
 function SecretDownloadCard({dl,accentColor,textColor,bgColor,borderColor}) {
   if(!dl?.enabled||!dl?.name) return null;
-  const ac=accentColor||"#e03d0c",tc=textColor||"#ccc",
+  const ac=accentColor||"var(--sv-accent)",tc=textColor||"#ccc",
         bg=bgColor||"rgba(255,255,255,.04)",bc=borderColor||"rgba(255,255,255,.1)";
   return(
     <div style={{border:`1px solid ${bc}`,padding:"16px 20px",background:bg,marginBottom:18,animation:"vaultReveal .4s ease .15s both"}}>
@@ -490,11 +490,11 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLib
             {prog.fileSize&&<span>{fmt.b(prog.fileSize)}</span>}
           </div>
           <div style={{display:"flex",gap:10}}>
-            <button onClick={doLike} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",border:`2px solid ${liked?"#e03d0c":th.div}`,background:liked?"#e03d0c":th.card,color:liked?th.card:th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,flexShrink:0,...dlPress.btnStyle,filter:liked?"none":dlPress.btnStyle.filter,transition:"background .15s, border-color .15s, filter 0.1s, transform 0.1s"}} {...dlPress.handlers}>
+            <button onClick={doLike} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",border:`2px solid ${liked?"var(--sv-accent)":th.div}`,background:liked?"var(--sv-accent)":th.card,color:liked?th.card:th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,flexShrink:0,...dlPress.btnStyle,filter:liked?"none":dlPress.btnStyle.filter,transition:"background .15s, border-color .15s, filter 0.1s, transform 0.1s"}} {...dlPress.handlers}>
               <span style={{fontSize:16,animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>{fmt.n(prog.likes||0)}
             </button>
             {onToggleLibrary&&<button onClick={()=>onToggleLibrary(prog.id)} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 16px",border:`2px solid ${inLibrary?"#16a34a":th.div}`,background:inLibrary?"#16a34a":th.card,color:inLibrary?th.card:th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,flexShrink:0}}>{inLibrary?(lt?.saved||"✓ Saved"):(lt?.save||"+ Save")}</button>}
-            {hasBuilds(prog) ? (<DownloadButtons prog={prog} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr} full/>) : (<button onClick={()=>onDownload(prog)} style={{flex:1,padding:"10px",background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
+            {hasBuilds(prog) ? (<DownloadButtons prog={prog} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr} full/>) : (<button onClick={()=>onDownload(prog)} style={{flex:1,padding:"10px",background:"var(--sv-accent)",color:th.card,border:th.bdr,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
               {loadingDl===prog.id?tr.loading:((prog.os||[]).includes("web")?tr.open:tr.dl)}
             </button>)}
           </div>
@@ -561,7 +561,7 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
       filter: corruptionLevel >= 11 ? `blur(${corruptionLevel * 0.05}px) contrast(${1 + corruptionLevel * 0.1})` : 'none'
     }}>
       {isNew&&(
-        <div style={{position:"absolute",top:-1,right:12,zIndex:10,background:"#e03d0c",color:"#fff",fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:2,padding:"3px 8px",fontWeight:500,animation:"newPulse 2s ease infinite"}}>NEW</div>
+        <div style={{position:"absolute",top:-1,right:12,zIndex:10,background:"var(--sv-accent)",color:"#fff",fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:2,padding:"3px 8px",fontWeight:500,animation:"newPulse 2s ease infinite"}}>NEW</div>
       )}
       {p.coverImage&&(
         <div onClick={()=>onDetail(p)} style={{height:160,overflow:"hidden",borderBottom:th.bdr,cursor:"pointer",flexShrink:0,background:"#000"}}>
@@ -582,16 +582,16 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
         {p.desc&&<p style={{fontSize:12,color:th.mut,lineHeight:1.72,flex:1,marginBottom:14,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:p.coverImage?2:3,WebkitBoxOrient:"vertical",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</p>}
         <button onClick={doLike} style={{
           width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px 0",marginBottom:8,
-          border:`2px solid ${liked?"#e03d0c":"#e03d0c66"}`,
-          background:liked?"#e03d0c":"transparent",
-          color:liked?th.card:"#e03d0c",cursor:"pointer",
+          border:`2px solid ${liked?"var(--sv-accent)":"var(--sv-accent)66"}`,
+          background:liked?"var(--sv-accent)":"transparent",
+          color:liked?th.card:"var(--sv-accent)",cursor:"pointer",
           fontFamily:"'IBM Plex Mono',monospace",fontSize:12,
-          filter:`drop-shadow(2px 2px 0 ${liked?"#c5330a":"#e03d0c44"})`,
+          filter:`drop-shadow(2px 2px 0 ${liked?"#c5330a":"var(--sv-accent)44"})`,
           transition:"background .12s, border-color .12s, filter 0.1s, transform 0.1s",
         }}
-          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"#e03d0c66"})`;if(!liked)e.currentTarget.style.background="#e03d0c18";}}
-          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"#e03d0c44"})`;if(!liked)e.currentTarget.style.background="transparent";}}
-          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"#e03d0c44"})`;}}
+          onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";e.currentTarget.style.filter=`drop-shadow(3px 3px 0 ${liked?"#c5330a":"var(--sv-accent)66"})`;if(!liked)e.currentTarget.style.background="var(--sv-accent)18";}}
+          onMouseLeave={e=>{e.stopPropagation();e.currentTarget.style.transform="none";e.currentTarget.style.filter=`drop-shadow(2px 2px 0 ${liked?"#c5330a":"var(--sv-accent)44"})`;if(!liked)e.currentTarget.style.background="transparent";}}
+          onMouseDown={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(1px,1px)";e.currentTarget.style.filter=`drop-shadow(1px 1px 0 ${liked?"#c5330a":"var(--sv-accent)44"})`;}}
           onMouseUp={e=>{e.stopPropagation();e.currentTarget.style.transform="translate(-1px,-1px)";}}>
           <span style={{fontSize:18,lineHeight:1,display:"inline-block",animation:heartAnim?"heartPop .42s cubic-bezier(.22,1,.36,1) both":"none"}}>{liked?"♥":"♡"}</span>
           <span style={{fontWeight:500}}>{(p.likes||0)>0?`${fmt.n(p.likes||0)} ${tr.lk}`:tr.lk}</span>
@@ -601,10 +601,10 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,marginBottom:8,lineHeight:1.55}}>
             {fmt.d(p.date)}{p.fileSize?` · ${fmt.b(p.fileSize)}`:""}<br/>
             {fmt.n(p.dl)} {tr.dl_n}
-            {hasImages&&<span onClick={()=>onDetail(p)} style={{marginLeft:8,color:"#e03d0c",cursor:"pointer",textDecoration:"underline",fontSize:10}}>{(p.screenshots||[]).length+1} photo{((p.screenshots||[]).length+1)!==1?"s":""}</span>}
+            {hasImages&&<span onClick={()=>onDetail(p)} style={{marginLeft:8,color:"var(--sv-accent)",cursor:"pointer",textDecoration:"underline",fontSize:10}}>{(p.screenshots||[]).length+1} photo{((p.screenshots||[]).length+1)!==1?"s":""}</span>}
           </div>
           {customDlBtn ?? (
-            hasBuilds(p) ? (<DownloadButtons prog={p} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr}/>) : (<button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
+            hasBuilds(p) ? (<DownloadButtons prog={p} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr}/>) : (<button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"var(--sv-accent)",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
               {loadingDl===p.id?tr.loading:((p.os||[]).includes("web")?tr.open:tr.dl)}
             </button>)
           )}
@@ -856,7 +856,7 @@ export default function Vault() {
   const tr=TR[lang]||TR.en;
   // The chosen accent has to reach the theme object: nearly every button colours
   // itself from th.org, so a CSS variable alone would never show up.
-  const [accent,setAccent]=useState("#e03d0c");
+  const [accent,setAccent]=useState("var(--sv-accent)");
   useEffect(()=>{
     const read=()=>{ const a=loadAppearance(); applyAppearance(a); setAccent(a.accent); };
     read();
@@ -883,7 +883,7 @@ export default function Vault() {
 
   useEffect(()=>{
     document.title="SoftwareVault";
-    const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="none" stroke="#e03d0c" stroke-width="2.5"/><circle cx="16" cy="16" r="9" fill="none" stroke="#e03d0c" stroke-width="1.5"/><circle cx="16" cy="16" r="3" fill="#e03d0c"/><line x1="16" y1="7" x2="16" y2="11" stroke="#e03d0c" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="21" x2="16" y2="25" stroke="#e03d0c" stroke-width="2" stroke-linecap="round"/><line x1="7" y1="16" x2="11" y2="16" stroke="#e03d0c" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="16" x2="25" y2="16" stroke="#e03d0c" stroke-width="2" stroke-linecap="round"/></svg>`;
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="none" stroke="var(--sv-accent)" stroke-width="2.5"/><circle cx="16" cy="16" r="9" fill="none" stroke="var(--sv-accent)" stroke-width="1.5"/><circle cx="16" cy="16" r="3" fill="var(--sv-accent)"/><line x1="16" y1="7" x2="16" y2="11" stroke="var(--sv-accent)" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="21" x2="16" y2="25" stroke="var(--sv-accent)" stroke-width="2" stroke-linecap="round"/><line x1="7" y1="16" x2="11" y2="16" stroke="var(--sv-accent)" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="16" x2="25" y2="16" stroke="var(--sv-accent)" stroke-width="2" stroke-linecap="round"/></svg>`;
     const encoded="data:image/svg+xml,"+encodeURIComponent(svg);
     let link=document.querySelector("link[rel*='icon']");
     if(!link){link=document.createElement("link");link.rel="icon";document.head.appendChild(link);}
@@ -1456,7 +1456,7 @@ export default function Vault() {
           onTouchStart={startHold}
           onTouchEnd={endHold}
           style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,
-            background:"#e03d0c",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,
+            background:"var(--sv-accent)",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,
             position:"relative",overflow:"hidden",
             filter:`drop-shadow(3px 3px 0 ${shColor})`,
             transition:"filter 0.1s ease, transform 0.1s ease"}}
@@ -1473,8 +1473,8 @@ export default function Vault() {
       {isInitializing&&(
         <div style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:"fadein .4s ease, fadeout .5s ease 0.5s forwards",overflow:"hidden",pointerEvents:"none"}}>
           <div style={{position:"absolute",inset:0}}>
-            <div style={{position:"absolute",top:"15%",right:"15%",width:250,height:250,background:"radial-gradient(circle, #e03d0c 0%, transparent 70%)",opacity:0.08,borderRadius:"50%",filter:"blur(50px)"}}/>
-            <div style={{position:"absolute",bottom:"15%",left:"10%",width:180,height:180,background:"radial-gradient(circle, #e03d0c 0%, transparent 70%)",opacity:0.05,borderRadius:"50%",filter:"blur(40px)"}}/>
+            <div style={{position:"absolute",top:"15%",right:"15%",width:250,height:250,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.08,borderRadius:"50%",filter:"blur(50px)"}}/>
+            <div style={{position:"absolute",bottom:"15%",left:"10%",width:180,height:180,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.05,borderRadius:"50%",filter:"blur(40px)"}}/>
           </div>
           <div style={{textAlign:"center",position:"relative",zIndex:1}}>
             <div style={{marginBottom:32,position:"relative",display:"flex",justifyContent:"center",alignItems:"center"}}>
@@ -1488,22 +1488,22 @@ export default function Vault() {
                     </feMerge>
                   </filter>
                 </defs>
-                <circle cx="16" cy="16" r="14.5" stroke="#e03d0c" strokeWidth="2.5" opacity="0.9"/>
+                <circle cx="16" cy="16" r="14.5" stroke="var(--sv-accent)" strokeWidth="2.5" opacity="0.9"/>
                 <circle cx="16" cy="16" r="10" stroke={th.blk} strokeWidth="1" opacity="0.2"/>
-                <circle cx="16" cy="16" r="3.5" fill="#e03d0c" filter="url(#glow-load)"/>
-                <line x1="16" y1="5" x2="16" y2="10.5" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-                <line x1="16" y1="21.5" x2="16" y2="27" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-                <line x1="5" y1="16" x2="10.5" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-                <line x1="21.5" y1="16" x2="27" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-                <circle cx="16" cy="4.5" r="1.8" fill="#e03d0c" opacity="0.7"/>
-                <circle cx="27.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
-                <circle cx="4.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
+                <circle cx="16" cy="16" r="3.5" fill="var(--sv-accent)" filter="url(#glow-load)"/>
+                <line x1="16" y1="5" x2="16" y2="10.5" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <line x1="16" y1="21.5" x2="16" y2="27" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <line x1="5" y1="16" x2="10.5" y2="16" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <line x1="21.5" y1="16" x2="27" y2="16" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+                <circle cx="16" cy="4.5" r="1.8" fill="var(--sv-accent)" opacity="0.7"/>
+                <circle cx="27.5" cy="16" r="1.8" fill="var(--sv-accent)" opacity="0.5"/>
+                <circle cx="4.5" cy="16" r="1.8" fill="var(--sv-accent)" opacity="0.5"/>
               </svg>
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:36,color:th.blk,marginBottom:8,letterSpacing:1,fontWeight:600}}>VAULT</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2.5,marginBottom:28,textTransform:"uppercase"}}>Loading...</div>
             <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-              {[0,1,2].map(i=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:"#e03d0c",animation:`pulseLoader 1.4s ease-in-out infinite`,animationDelay:`${i*0.25}s`}}/>)}
+              {[0,1,2].map(i=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:"var(--sv-accent)",animation:`pulseLoader 1.4s ease-in-out infinite`,animationDelay:`${i*0.25}s`}}/>)}
             </div>
           </div>
         </div>
@@ -1567,7 +1567,7 @@ export default function Vault() {
         @keyframes heroGlitch{0%{transform:none}25%{transform:translateX(2px)}50%{transform:translateX(-1px)}75%{transform:translateX(1px)}100%{transform:none}}
         @keyframes glitchLines{0%{background-position:0 0}100%{background-position:0 40px}}
         @keyframes glitchSweep{0%{transform:translateX(0)}50%{transform:translateX(100%)}100%{transform:translateX(0)}}
-        input:focus,textarea:focus,select:focus{outline:2px solid #e03d0c!important;outline-offset:-1px}
+        input:focus,textarea:focus,select:focus{outline:2px solid var(--sv-accent)!important;outline-offset:-1px}
         select option{background:${th.inputBg};color:${th.blk}}
       `}</style>
 
@@ -1579,9 +1579,9 @@ export default function Vault() {
 
       {finalSurge&&(
         <div style={{position:"fixed",inset:0,zIndex:9400,background:"rgba(8,8,10,.94)",display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",padding:20}}>
-          <div style={{position:"relative",width:"100%",maxWidth:520,padding:"44px 36px",border:"2px solid #e03d0c",background:"#060608",boxShadow:"0 0 0 8px rgba(224,61,12,.15)",overflow:"hidden",animation:"fadeIn .2s ease both"}}>
+          <div style={{position:"relative",width:"100%",maxWidth:520,padding:"44px 36px",border:"2px solid var(--sv-accent)",background:"#060608",boxShadow:"0 0 0 8px rgba(224,61,12,.15)",overflow:"hidden",animation:"fadeIn .2s ease both"}}>
             <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 20% 20%,rgba(224,61,12,.08),transparent 22%),radial-gradient(circle at 80% 80%,rgba(255,255,255,.08),transparent 20%)"}}/>
-            <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,#e03d0c,transparent)",animation:"glitchSweep 1.5s ease infinite"}}/>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,var(--sv-accent),transparent)",animation:"glitchSweep 1.5s ease infinite"}}/>
             <div style={{position:"relative",fontFamily:"'Anton',sans-serif",fontSize:32,color:"#f8f4ee",letterSpacing:.4,marginBottom:16,textTransform:"uppercase",lineHeight:1.05,textShadow:"0 0 20px rgba(224,61,12,.33)"}}>SYSTEM OVERLOAD</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#ccc",lineHeight:1.8,marginBottom:22}}>
               The vault could not contain the corruption anymore.<br/>
@@ -1589,7 +1589,7 @@ export default function Vault() {
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
               {[0,1,2].map(i=>(
-                <span key={i} style={{width:46,height:4,background:"#e03d0c",opacity:.7,animation:`glitchSweep ${1.2 + i*0.1}s ease-in-out infinite`,display:"inline-block"}}/>
+                <span key={i} style={{width:46,height:4,background:"var(--sv-accent)",opacity:.7,animation:`glitchSweep ${1.2 + i*0.1}s ease-in-out infinite`,display:"inline-block"}}/>
               ))}
             </div>
           </div>
@@ -1619,16 +1619,16 @@ export default function Vault() {
                 </feMerge>
               </filter>
             </defs>
-            <circle cx="16" cy="16" r="14.5" stroke="#e03d0c" strokeWidth="2.5" opacity="0.9"/>
+            <circle cx="16" cy="16" r="14.5" stroke="var(--sv-accent)" strokeWidth="2.5" opacity="0.9"/>
             <circle cx="16" cy="16" r="10" stroke={th.blk} strokeWidth="1" opacity="0.2"/>
-            <circle cx="16" cy="16" r="3.5" fill="#e03d0c" filter="url(#glow)"/>
-            <line x1="16" y1="5" x2="16" y2="10.5" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-            <line x1="16" y1="21.5" x2="16" y2="27" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-            <line x1="5" y1="16" x2="10.5" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-            <line x1="21.5" y1="16" x2="27" y2="16" stroke="#e03d0c" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
-            <circle cx="16" cy="4.5" r="1.8" fill="#e03d0c" opacity="0.7"/>
-            <circle cx="27.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
-            <circle cx="4.5" cy="16" r="1.8" fill="#e03d0c" opacity="0.5"/>
+            <circle cx="16" cy="16" r="3.5" fill="var(--sv-accent)" filter="url(#glow)"/>
+            <line x1="16" y1="5" x2="16" y2="10.5" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <line x1="16" y1="21.5" x2="16" y2="27" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <line x1="5" y1="16" x2="10.5" y2="16" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <line x1="21.5" y1="16" x2="27" y2="16" stroke="var(--sv-accent)" strokeWidth="2" strokeLinecap="round" opacity="0.8"/>
+            <circle cx="16" cy="4.5" r="1.8" fill="var(--sv-accent)" opacity="0.7"/>
+            <circle cx="27.5" cy="16" r="1.8" fill="var(--sv-accent)" opacity="0.5"/>
+            <circle cx="4.5" cy="16" r="1.8" fill="var(--sv-accent)" opacity="0.5"/>
           </svg>
           <span style={{display:"flex",flexDirection:"column",lineHeight:1,gap:2,textAlign:"left"}}>
             <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,letterSpacing:3,color:th.mut,textTransform:"uppercase",fontWeight:500}}>Software</span>
@@ -1656,13 +1656,13 @@ export default function Vault() {
             <div style={{maxWidth:980,margin:"0 auto",position:"relative"}}>
               <h1 className="hero-title" onMouseDown={handleHeroTitleDown} onMouseUp={handleHeroTitleUp} onMouseLeave={handleHeroTitleUp} onTouchStart={handleHeroTitleDown} onTouchEnd={handleHeroTitleUp} style={{fontFamily:"'Anton',sans-serif",fontSize:"clamp(44px,7vw,84px)",fontWeight:400,lineHeight:1,letterSpacing:.3,marginBottom:18,cursor:"pointer",userSelect:"none", opacity: corruptionLevel >= 9 ? 0.7 + Math.random() * 0.2 : 1, textShadow: corruptionLevel >= 10 ? '3px 3px 0 #f43f5e, -2px -2px 0 #00ff00' : 'none'}}>
                 <div style={{overflow:"hidden"}}><span style={{display:"block",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) both"}}>{tr.h1[0]}</span></div>
-                <div style={{overflow:"hidden"}}><span style={{display:"block",color:"#e03d0c",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) .07s both"}}>{tr.h1[1]}</span></div>
+                <div style={{overflow:"hidden"}}><span style={{display:"block",color:"var(--sv-accent)",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) .07s both"}}>{tr.h1[1]}</span></div>
               </h1>
               <p style={{fontSize:13,color:th.mut,lineHeight:1.85,maxWidth:480,marginBottom:28,fontFamily:"'IBM Plex Mono',monospace",animation:"fadeUp .5s ease .28s both"}}>{sett.heroSub||tr.sub}</p>
               <div onClick={handleStatsClick} style={{display:"flex",gap:24,flexWrap:"wrap",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,borderTop:`1px solid ${th.div}`,paddingTop:20,cursor:"default",userSelect:"none"}}>
                 <span style={{animation:"statSlide .45s ease .45s both"}}><strong style={{fontFamily:"'Anton',sans-serif",fontSize:20,color:th.blk,marginRight:5}}><CountUp to={progs.length}/></strong>{tr.progs}</span>
                 <span style={{animation:"statSlide .45s ease .55s both"}}><strong style={{fontFamily:"'Anton',sans-serif",fontSize:20,color:th.blk,marginRight:5}}><CountUp to={totalDl}/></strong>{tr.dls}</span>
-                {progs.some(p=>p.featured)&&<span style={{animation:"statSlide .45s ease .65s both"}}><strong style={{fontFamily:"'Anton',sans-serif",fontSize:20,color:"#e03d0c",marginRight:5}}><CountUp to={progs.filter(p=>p.featured).length}/></strong>{tr.feat}</span>}
+                {progs.some(p=>p.featured)&&<span style={{animation:"statSlide .45s ease .65s both"}}><strong style={{fontFamily:"'Anton',sans-serif",fontSize:20,color:"var(--sv-accent)",marginRight:5}}><CountUp to={progs.filter(p=>p.featured).length}/></strong>{tr.feat}</span>}
               </div>
               {foundSecrets.length>0&&(
                 <div style={{display:"flex",alignItems:"center",gap:5,marginTop:20,paddingTop:16,borderTop:`1px solid ${th.div}`,animation:"starsReveal .5s cubic-bezier(.22,1,.36,1) both",flexWrap:"wrap"}}>
@@ -1711,7 +1711,7 @@ export default function Vault() {
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:28,paddingTop:12,borderTop:`1px solid ${th.div}`}}>
               <span style={{fontSize:11,color:th.mut,marginRight:4,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.platform}</span>
               {OSS.map(o=><button key={o.id} className="btn-animated" onClick={()=>setOsFilter(f=>f.includes(o.id)?f.filter(x=>x!==o.id):[...f,o.id])} style={{...baseBtn(osFilter.includes(o.id)),marginRight:8,marginBottom:8}}>{o.l}</button>)}
-              {osFilter.length>0&&<button onClick={()=>setOsFilter([])} style={{background:"none",border:"none",fontSize:11,color:"#e03d0c",cursor:"pointer",textDecoration:"underline",fontFamily:"'IBM Plex Mono',monospace",padding:0}}>{tr.clear}</button>}
+              {osFilter.length>0&&<button onClick={()=>setOsFilter([])} style={{background:"none",border:"none",fontSize:11,color:"var(--sv-accent)",cursor:"pointer",textDecoration:"underline",fontFamily:"'IBM Plex Mono',monospace",padding:0}}>{tr.clear}</button>}
             </div>
           </div>
 
@@ -1770,7 +1770,7 @@ export default function Vault() {
 
           <div style={{display:"flex",gap:0,marginBottom:36,borderBottom:th.bdr}}>
             {[{id:"programs",label:"Programs"},{id:"site",label:"Site"},{id:"secrets",label:"Secrets ◉"}].map(t=>(
-              <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{padding:"12px 22px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:"none",borderBottom:`3px solid ${adminTab===t.id?"#e03d0c":"transparent"}`,background:"none",color:adminTab===t.id?th.blk:th.mut,cursor:"pointer",marginBottom:-2,transition:"color .2s ease, border-color .2s ease",letterSpacing:.5}}>
+              <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{padding:"12px 22px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:"none",borderBottom:`3px solid ${adminTab===t.id?"var(--sv-accent)":"transparent"}`,background:"none",color:adminTab===t.id?th.blk:th.mut,cursor:"pointer",marginBottom:-2,transition:"color .2s ease, border-color .2s ease",letterSpacing:.5}}>
                 {t.label}
               </button>
             ))}
@@ -1835,8 +1835,8 @@ export default function Vault() {
                           {p.coverImage&&<div style={{width:46,height:46,flexShrink:0,border:th.bdr,overflow:"hidden"}}><img src={p.coverImage} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
-                              {p.featured&&<span style={{color:"#e03d0c",fontSize:12}}>★</span>}
-                              {fmt.isNew(p.date)&&<span style={{fontSize:9,padding:"2px 6px",background:"#e03d0c",color:"#fff",fontFamily:"'IBM Plex Mono',monospace",letterSpacing:1}}>NEW</span>}
+                              {p.featured&&<span style={{color:"var(--sv-accent)",fontSize:12}}>★</span>}
+                              {fmt.isNew(p.date)&&<span style={{fontSize:9,padding:"2px 6px",background:"var(--sv-accent)",color:"#fff",fontFamily:"'IBM Plex Mono',monospace",letterSpacing:1}}>NEW</span>}
                               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:500,color:th.blk}}>{p.name}</span>
                               <span style={{fontSize:10,padding:"1px 7px",border:th.bdr,color:th.blk}}>{p.cat}</span>
                             </div>
@@ -1850,7 +1850,7 @@ export default function Vault() {
                           </div>
                         ):(
                           <div style={{display:"flex",gap:6,flexShrink:0}}>
-                            <button title={p.featured?tr.upin:tr.pin} onClick={()=>toggleFeatured(p.id)} style={{padding:"5px 10px",border:th.bdr,background:p.featured?"#e03d0c":th.card,color:p.featured?th.card:th.blk,cursor:"pointer",fontSize:13,filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")",transition:"filter .1s, transform .1s, background .2s ease, color .2s ease"}}
+                            <button title={p.featured?tr.upin:tr.pin} onClick={()=>toggleFeatured(p.id)} style={{padding:"5px 10px",border:th.bdr,background:p.featured?"var(--sv-accent)":th.card,color:p.featured?th.card:th.blk,cursor:"pointer",fontSize:13,filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")",transition:"filter .1s, transform .1s, background .2s ease, color .2s ease"}}
                               onMouseEnter={e=>{e.currentTarget.style.transform="translate(-1px,-1px) scale(1.05)";}}
                               onMouseLeave={e=>{e.currentTarget.style.transform="none";}}
                               onMouseDown={e=>{e.currentTarget.style.transform="translate(1px,1px) scale(.98)";}}
@@ -1889,7 +1889,7 @@ export default function Vault() {
                 <p style={{fontSize:12,color:th.mut,marginBottom:14,fontFamily:"'IBM Plex Mono',monospace",lineHeight:1.6}}>Require a 2FA code when logging in. If disabled, only password is required.</p>
                 <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
                   <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.blk,userSelect:"none"}}>
-                    <input type="checkbox" checked={twoFactorEnabledDraft} onChange={e=>setTwoFactorEnabledDraft(e.target.checked)} style={{width:14,height:14,cursor:"pointer",accentColor:"#e03d0c"}}/>
+                    <input type="checkbox" checked={twoFactorEnabledDraft} onChange={e=>setTwoFactorEnabledDraft(e.target.checked)} style={{width:14,height:14,cursor:"pointer",accentColor:"var(--sv-accent)"}}/>
                     Enable 2FA
                   </label>
                   <Btn sm v="primary" th={th} onClick={saveTwoFactorSetting}>Save</Btn>
@@ -1916,7 +1916,7 @@ export default function Vault() {
                 <div style={{marginBottom:18}}><label style={lbl}>{tr.ppmsglbl}</label><textarea style={{...inp,height:68,resize:"vertical"}} value={ppDraft.msg} onChange={e=>setPpDraft(p=>({...p,msg:e.target.value}))} placeholder={tr.ppm}/></div>
                 <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
                   <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.blk,userSelect:"none"}}>
-                    <input type="checkbox" checked={ppDraft.visible} onChange={e=>setPpDraft(p=>({...p,visible:e.target.checked}))} style={{width:14,height:14,cursor:"pointer",accentColor:"#e03d0c"}}/>
+                    <input type="checkbox" checked={ppDraft.visible} onChange={e=>setPpDraft(p=>({...p,visible:e.target.checked}))} style={{width:14,height:14,cursor:"pointer",accentColor:"var(--sv-accent)"}}/>
                     {tr.ppvis}
                   </label>
                   <Btn sm v="primary" th={th} onClick={saveSupport}>{tr.ans}</Btn>
@@ -1969,7 +1969,7 @@ export default function Vault() {
                       <div style={{marginBottom:14}}><label style={lbl}>Short description (optional)</label><textarea style={{...inp,height:48,resize:"vertical"}} value={dl.desc} onChange={e=>updateSd(idx,"desc",e.target.value)} placeholder="A reward for the curious..."/></div>
                       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
                         <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.blk,userSelect:"none"}}>
-                          <input type="checkbox" checked={!!dl.enabled} onChange={e=>updateSd(idx,"enabled",e.target.checked)} style={{width:14,height:14,cursor:"pointer",accentColor:"#e03d0c"}}/>
+                          <input type="checkbox" checked={!!dl.enabled} onChange={e=>updateSd(idx,"enabled",e.target.checked)} style={{width:14,height:14,cursor:"pointer",accentColor:"var(--sv-accent)"}}/>
                           Enable download for this secret
                         </label>
                         <Btn sm v="primary" th={th} onClick={()=>saveSecretDownload(idx)}>Save</Btn>
@@ -2019,7 +2019,7 @@ export default function Vault() {
                 <label style={lbl}>{tr.conf}</label>
                 <input type="password" style={{...inp,marginBottom:12}} value={pw2} onChange={e=>setPw2(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){modal==="changepw"?changePw():setupAdmin();}}} placeholder="••••••••"/>
               </>)}
-              {pwErr&&<p style={{fontSize:12,color:"#e03d0c",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{pwErr}</p>}
+              {pwErr&&<p style={{fontSize:12,color:"var(--sv-accent)",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{pwErr}</p>}
               {modal==="setup"&&<p style={{fontSize:10,color:th.mut,marginBottom:16,lineHeight:1.75,padding:"8px 12px",background:th.bg,border:`1px solid ${th.div}`,fontFamily:"'IBM Plex Mono',monospace"}}>{tr.lw}</p>}
               {modal==="login"&&!loginRequires2fa&&(<button onClick={()=>{setModal("reset");setResetStep("request");setResetErr("");setResetMsg("");setResetCode("");setPw("");setPw2("");}} style={{background:"none",border:"none",color:th.mut,fontFamily:"'IBM Plex Mono',monospace",fontSize:11,cursor:"pointer",padding:0,marginBottom:14,textDecoration:"underline",display:"block"}}>{lang==="de"?"Passwort vergessen?":"Forgot password?"}</button>)}
               <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
@@ -2033,7 +2033,7 @@ export default function Vault() {
               <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,marginBottom:14,letterSpacing:.3,color:th.blk}}>{lang==="de"?"Passwort zurücksetzen":"Reset password"}</h2>
               {resetStep==="request"?(<>
                 <p style={{fontSize:12,color:th.mut,lineHeight:1.7,marginBottom:18,fontFamily:"'IBM Plex Mono',monospace"}}>{lang==="de"?"Wir senden einen Reset-Code an deine Admin-E-Mail.":"We'll email a reset code to your admin email."}</p>
-                {resetErr&&<p style={{fontSize:12,color:"#e03d0c",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{resetErr}</p>}
+                {resetErr&&<p style={{fontSize:12,color:"var(--sv-accent)",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{resetErr}</p>}
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                   <Btn sm th={th} onClick={()=>{setModal("login");setResetErr("");}}>{tr.cncl}</Btn>
                   <Btn sm v="primary" th={th} onClick={requestReset}>{lang==="de"?"Code senden":"Send code"}</Btn>
@@ -2046,7 +2046,7 @@ export default function Vault() {
                 <input type="password" style={{...inp,marginBottom:12}} value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••"/>
                 <label style={lbl}>{tr.conf}</label>
                 <input type="password" style={{...inp,marginBottom:12}} value={pw2} onChange={e=>setPw2(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmReset();}} placeholder="••••••••"/>
-                {resetErr&&<p style={{fontSize:12,color:"#e03d0c",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{resetErr}</p>}
+                {resetErr&&<p style={{fontSize:12,color:"var(--sv-accent)",marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{resetErr}</p>}
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                   <Btn sm th={th} onClick={()=>{setModal("login");setResetErr("");setResetStep("request");}}>{tr.cncl}</Btn>
                   <Btn sm v="primary" th={th} onClick={confirmReset}>{lang==="de"?"Zurücksetzen":"Reset"}</Btn>
@@ -2076,7 +2076,7 @@ export default function Vault() {
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                         <span style={{width:74,fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:th.blk}}>{o.l}</span>
                         <span style={{fontSize:11,color:cur?th.blk:th.mut,fontFamily:"'IBM Plex Mono',monospace",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur?("current: "+(cur.name||cur.url)):"(no build)"}</span>
-                        {cur&&(<label style={{fontSize:11,color:"#e03d0c",fontFamily:"'IBM Plex Mono',monospace",display:"flex",alignItems:"center",gap:4,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={!!b.remove} onChange={e=>setEditForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],remove:e.target.checked}}}))} style={{accentColor:"#e03d0c",cursor:"pointer"}}/>remove</label>)}
+                        {cur&&(<label style={{fontSize:11,color:"var(--sv-accent)",fontFamily:"'IBM Plex Mono',monospace",display:"flex",alignItems:"center",gap:4,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={!!b.remove} onChange={e=>setEditForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],remove:e.target.checked}}}))} style={{accentColor:"var(--sv-accent)",cursor:"pointer"}}/>remove</label>)}
                       </div>
                       <div style={{display:"flex",gap:8,opacity:b.remove?0.4:1}}>
                         <input type="file" disabled={!!b.remove} style={{...inp,padding:"7px 10px",flex:1,marginBottom:0}} onChange={e=>setEditForm(f=>({...f,builds:{...f.builds,[o.id]:{...f.builds[o.id],file:e.target.files[0]||null}}}))}/>
@@ -2145,15 +2145,15 @@ export default function Vault() {
       {/* SECRET 2 — Logo 5×: glitch */}
       {secret2&&(
         <div style={{position:"fixed",inset:0,background:"#050505",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .15s ease",pointerEvents:"none"}}>
-          <div style={{background:"#0a0a0a",border:"2px solid #e8e4d8",padding:"48px 44px",maxWidth:460,width:"100%",boxShadow:"8px 8px 0 #e03d0c",animation:"modalIn .22s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
+          <div style={{background:"#0a0a0a",border:"2px solid #e8e4d8",padding:"48px 44px",maxWidth:460,width:"100%",boxShadow:"8px 8px 0 var(--sv-accent)",animation:"modalIn .22s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{position:"relative",marginBottom:10,height:80}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#e8e4d8",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:3}}>HEY YOU.</div>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:2,animation:"glitch1 2.4s steps(1) infinite",mixBlendMode:"screen"}}>HEY YOU.</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:2,animation:"glitch1 2.4s steps(1) infinite",mixBlendMode:"screen"}}>HEY YOU.</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#0ff",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:1,animation:"glitch2 3.1s steps(1) infinite",mixBlendMode:"screen",opacity:.6}}>HEY YOU.</div>
             </div>
             <div style={{fontSize:9,color:"#444",marginBottom:20,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:3}}>SECRET 02/12 — LOGO SEQUENCE</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#666",lineHeight:1.9,marginBottom:20}}>you've cracked the first layer. the vault is awake.<br/>symbols surround you in the interface. some are more present than others.<br/>the marked one at the top watches. press it. five times. do not hesitate between presses.</p>
-            <SecretDownloadCard dl={getSd(2)} accentColor="#e03d0c" textColor="#e8e4d8" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.08)"/>
+            <SecretDownloadCard dl={getSd(2)} accentColor="var(--sv-accent)" textColor="#e8e4d8" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.08)"/>
           </div>
         </div>
       )}
@@ -2162,7 +2162,7 @@ export default function Vault() {
       {secret3&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           {[0,.5,1].map(d=><div key={d} style={{position:"absolute",borderRadius:"50%",width:240,height:240,border:"1px solid rgba(255,140,0,.4)",pointerEvents:"none",animation:`radarPing 2.4s ease-out ${d}s infinite`}}/>)}
-          <div style={{position:"relative",zIndex:10,background:"#0d0a06",border:"2px solid #ff8c00",padding:"40px 44px",maxWidth:460,width:"100%",boxShadow:"0 0 80px rgba(255,140,0,.15),8px 8px 0 #e03d0c",animation:"modalIn .28s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
+          <div style={{position:"relative",zIndex:10,background:"#0d0a06",border:"2px solid #ff8c00",padding:"40px 44px",maxWidth:460,width:"100%",boxShadow:"0 0 80px rgba(255,140,0,.15),8px 8px 0 var(--sv-accent)",animation:"modalIn .28s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#ff8c00",letterSpacing:2,animation:"scanPulse 1.6s ease infinite"}}>◉ SIGNAL DETECTED</span>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#ff8c00",opacity:.4,letterSpacing:2}}>SECRET 03/12</span>
@@ -2296,7 +2296,7 @@ export default function Vault() {
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 10/12 — SCHEMA FLIP</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>SCHEMA<br/>FRACTURE</div>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>SCHEMA<br/>FRACTURE</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>SCHEMA<br/>FRACTURE</div>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_SCHEMA_OVERFLOW · 10 flips / 3s</div>
               <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
@@ -2315,7 +2315,7 @@ export default function Vault() {
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 11/12 — DATA CASCADE</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>CASCADE<br/>TRIGGERED</div>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>CASCADE<br/>TRIGGERED</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>CASCADE<br/>TRIGGERED</div>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_RIGHT_CLICK_DETECTED · 2s HOLD</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
@@ -2334,7 +2334,7 @@ export default function Vault() {
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 12/12 — VAULT RESONANCE</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>RESONANCE<br/>UNLOCKED</div>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#e03d0c",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>RESONANCE<br/>UNLOCKED</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>RESONANCE<br/>UNLOCKED</div>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_FEATURED_OVERLOAD · 7 CLICKS</div>
             <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>

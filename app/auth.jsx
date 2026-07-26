@@ -559,7 +559,7 @@ function AuthModal({ lang, th, onClose }) {
                 onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
             )}
 
-            {err && <p style={{ color: "#e03d0c", fontSize: 11, margin: "2px 0 10px" }}>{err}</p>}
+            {err && <p style={{ color: "var(--sv-accent)", fontSize: 11, margin: "2px 0 10px" }}>{err}</p>}
 
             <button onClick={submit} disabled={busy}
               style={{ width: "100%", padding: 10, background: th.org, color: "#fff",
@@ -607,6 +607,74 @@ function AuthModal({ lang, th, onClose }) {
 }
 
 // ---- account modal (change username + sign out) ----------------------------
+const CROP_VIEW = 220;   // on-screen size of the round crop window
+
+/** Pick the visible part of a picture — drag to move, slider to zoom. */
+function AvatarCropper({ file, th, onCancel, onConfirm, busy }) {
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef(null);
+  const url = useRef("");
+  if (!url.current && file) url.current = URL.createObjectURL(file);
+  useEffect(() => () => { if (url.current) URL.revokeObjectURL(url.current); }, []);
+
+  const start = (px, py) => { drag.current = { px, py, ...offset }; };
+  const move = (px, py) => {
+    if (!drag.current) return;
+    setOffset({
+      x: drag.current.x + (px - drag.current.px),
+      y: drag.current.y + (py - drag.current.py),
+    });
+  };
+  const stop = () => { drag.current = null; };
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div
+        onMouseDown={(e) => start(e.clientX, e.clientY)}
+        onMouseMove={(e) => move(e.clientX, e.clientY)}
+        onMouseUp={stop} onMouseLeave={stop}
+        onTouchStart={(e) => start(e.touches[0].clientX, e.touches[0].clientY)}
+        onTouchMove={(e) => { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }}
+        onTouchEnd={stop}
+        style={{ width: CROP_VIEW, height: CROP_VIEW, margin: "0 auto 10px",
+                 borderRadius: "50%", overflow: "hidden", position: "relative",
+                 border: th.bdr, cursor: "grab", touchAction: "none",
+                 background: "#000" }}>
+        <img src={url.current} alt="" draggable={false}
+          style={{ position: "absolute", left: "50%", top: "50%",
+                   transform: `translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) scale(${zoom})`,
+                   // "cover": the short side fills the circle, same rule the
+                   // export uses so what you see is what gets saved
+                   minWidth: "100%", minHeight: "100%",
+                   objectFit: "cover", userSelect: "none", pointerEvents: "none" }} />
+      </div>
+
+      <input type="range" min="1" max="3" step="0.01" value={zoom}
+        onChange={(e) => setZoom(parseFloat(e.target.value))}
+        style={{ width: "100%", accentColor: th.org, marginBottom: 8 }} />
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => onConfirm({ zoom, offset, viewport: CROP_VIEW })}
+          disabled={busy}
+          style={{ flex: 1, padding: 9, background: th.org, color: "#fff", border: th.bdr,
+                   cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
+                   fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
+          {busy ? "…" : "Use this"}
+        </button>
+        <button onClick={onCancel} disabled={busy}
+          style={{ padding: "9px 14px", background: th.card, color: th.blk, border: th.bdr,
+                   cursor: "pointer", fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
+          Cancel
+        </button>
+      </div>
+      <p style={{ fontSize: 10, opacity: .6, margin: "6px 0 0", textAlign: "center" }}>
+        Drag to move · slider to zoom
+      </p>
+    </div>
+  );
+}
+
 /** Round avatar with an initials fallback, used in the header and the dialog. */
 export function Avatar({ url, name, email, size = 32, th }) {
   const [broken, setBroken] = useState(false);
@@ -617,7 +685,7 @@ export function Avatar({ url, name, email, size = 32, th }) {
       style={{
         width: size, height: size, borderRadius: "50%", overflow: "hidden",
         display: "inline-flex", alignItems: "center", justifyContent: "center",
-        background: show ? "transparent" : (th?.org || "#e03d0c"),
+        background: show ? "transparent" : (th?.org || "var(--sv-accent)"),
         color: "#fff", fontSize: Math.round(size * 0.4), fontWeight: 700,
         fontFamily: "'IBM Plex Mono',monospace", flexShrink: 0,
         border: `2px solid ${th?.blk || "#e8e4d8"}`, lineHeight: 1,
@@ -651,6 +719,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   const [otpauth, setOtpauth] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
   const fileRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [appearance, setAppearance] = useState(loadAppearance);
@@ -681,14 +750,20 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
       .catch(() => {});
   }, [user.id]);
 
-  async function pickAvatar(e) {
+  function pickAvatar(e) {
     const file = e.target.files?.[0];
     e.target.value = "";              // let the same file be chosen again later
     if (!file) return;
-    setErr(""); setMsg(""); setAvatarBusy(true);
+    setErr(""); setMsg("");
+    setPendingFile(file);             // opens the crop view
+  }
+
+  async function confirmCrop(crop) {
+    setErr(""); setAvatarBusy(true);
     try {
-      const url = await uploadAvatar(file, user.id);
+      const url = await uploadAvatar(pendingFile, user.id, crop);
       setAvatarUrl(url);
+      setPendingFile(null);
       setMsg(at.updated);
       onSaved && onSaved();
     } catch (e2) {
@@ -854,6 +929,11 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
         </div>
 
+        {pendingFile && (
+          <AvatarCropper file={pendingFile} th={th} busy={avatarBusy}
+            onCancel={() => setPendingFile(null)} onConfirm={confirmCrop} />
+        )}
+
         {/* profile header: picture, name, address */}
         <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16 }}>
           <button onClick={() => fileRef.current?.click()} disabled={avatarBusy}
@@ -896,7 +976,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
           placeholder={t.user} autoComplete="username" maxLength={24} style={input}
           onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
 
-        {err && <p style={{ color: "#e03d0c", fontSize: 11, margin: "2px 0 8px" }}>{err}</p>}
+        {err && <p style={{ color: "var(--sv-accent)", fontSize: 11, margin: "2px 0 8px" }}>{err}</p>}
         {msg && <p style={{ color: th.org, fontSize: 11, margin: "2px 0 8px" }}>{msg}</p>}
 
         <button onClick={save} disabled={busy}
@@ -969,7 +1049,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
                 Codes are emailed to you when you sign in.
               </p>
               <button onClick={() => toggleEmail2fa(false)} disabled={busy}
-                style={{ width: "100%", padding: 10, background: "#e03d0c", color: "#fff",
+                style={{ width: "100%", padding: 10, background: "var(--sv-accent)", color: "#fff",
                          border: th.bdr, cursor: "pointer", opacity: busy ? 0.6 : 1,
                          fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
                 {busy ? "…" : "Turn off email codes"}
@@ -977,7 +1057,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
             </>
           ) : twofa ? (
             <button onClick={disable2fa} disabled={busy}
-              style={{ width: "100%", padding: 10, background: "#e03d0c", color: "#fff",
+              style={{ width: "100%", padding: 10, background: "var(--sv-accent)", color: "#fff",
                        border: th.bdr, cursor: "pointer", opacity: busy ? 0.6 : 1,
                        fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
               {at.disable2fa}
