@@ -928,9 +928,12 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
   // group related controls so a long settings list reads as sections rather
   // than one undifferentiated column
   const section = {
-    border: `1px solid ${th.blk}22`, padding: 14, marginBottom: 14,
+    border: `1px solid ${th.blk}22`, padding: "14px 14px 10px", marginBottom: 14,
     background: `${th.blk}08`,
   };
+  // the four dropdowns read better as a grid than as a tall stack
+  const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 };
+  const field = { marginBottom: 0 };
   const sectionTitle = {
     fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
     opacity: 0.75, margin: "0 0 10px",
@@ -1137,7 +1140,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
         <div style={section}>
           <p style={sectionTitle}>Appearance</p>
 
-          <div style={{ marginBottom: 12 }}>
+          <div style={grid2}>
+          <div style={field}>
             <p style={{ fontSize: 11, marginBottom: 4 }}>Corners</p>
             <select value={appearance.corners}
               onChange={(e) => updateAppearance({ corners: e.target.value })}
@@ -1147,7 +1151,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
             </select>
           </div>
 
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ margin: "12px 0" }}>
             <p style={{ fontSize: 11, marginBottom: 4 }}>Accent colour</p>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {ACCENTS.map((a) => (
@@ -1160,7 +1164,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
             </div>
           </div>
 
-          <div style={{ marginBottom: 12 }}>
+          <div style={field}>
             <p style={{ fontSize: 11, marginBottom: 4 }}>Text size</p>
             <select value={appearance.textSize}
               onChange={(e) => updateAppearance({ textSize: e.target.value })}
@@ -1171,7 +1175,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
             </select>
           </div>
 
-          <div style={{ marginBottom: 12 }}>
+          <div style={field}>
             <p style={{ fontSize: 11, marginBottom: 4 }}>Density</p>
             <select value={appearance.density}
               onChange={(e) => updateAppearance({ density: e.target.value })}
@@ -1193,7 +1197,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
             "reduce motion" setting is respected automatically.
           </p>
 
-          <div style={{ marginBottom: 12 }}>
+          <div style={field}>
             <p style={{ fontSize: 11, marginBottom: 4 }}>Typeface</p>
             <select value={appearance.font}
               onChange={(e) => updateAppearance({ font: e.target.value })}
@@ -1202,6 +1206,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
               <option value="sans">Sans-serif (easier to read)</option>
             </select>
           </div>
+          </div>
+
 
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
                           cursor: "pointer", marginBottom: 8 }}>

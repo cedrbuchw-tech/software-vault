@@ -436,9 +436,11 @@ html[data-corners="smooth"] button,
 html[data-corners="smooth"] input,
 html[data-corners="smooth"] select,
 html[data-corners="smooth"] textarea,
-html[data-corners="smooth"] .program-card,
-html[data-corners="smooth"] img {
+html[data-corners="smooth"] .program-card {
     border-radius: var(--sv-radius);
+    /* clip the cover image instead of rounding the <img> itself — a
+       rounded image on a dark card leaves black corners showing */
+    overflow: hidden;
 }
 
 /* Text size.
@@ -506,9 +508,6 @@ html[data-font="sans"] body * {
 }
 
 /* Higher contrast for readability: lift the muted greys and thicken borders. */
-html[data-contrast="high"] body {
-    --sv-radius: var(--sv-radius);
-}
 html[data-contrast="high"] p,
 html[data-contrast="high"] span,
 html[data-contrast="high"] div {
@@ -527,4 +526,29 @@ html[data-glitch="off"] #sv-root {
 }
 html[data-glitch="off"] .glitchy {
     animation: none !important;
+}
+
+/* Sans-serif needs different vertical room.
+   The headings are sized for a condensed display face; swapping in a system
+   sans keeps the fixed line-height and clips the descenders (the "g" and "y"
+   in "and give away"). Give those lines room and let them breathe. */
+html[data-font="sans"] .hero-title,
+html[data-font="sans"] h1,
+html[data-font="sans"] h2 {
+    line-height: 1.15 !important;
+    letter-spacing: normal !important;
+    overflow: visible !important;
+    padding-bottom: 0.08em;
+}
+
+html[data-font="sans"] body {
+    letter-spacing: normal !important;
+}
+
+/* Cover images fill their frame edge to edge, whatever the corner style. */
+.program-card img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
