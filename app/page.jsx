@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
 import { useBackdropClose, useScrollLock, Portal } from "@/lib/modal_ux";
 import { loadAppearance, applyAppearance } from "@/lib/appearance";
+import { resolveDownload, hostLabel } from "@/lib/download_target";
 // Used in six places below (every call that needs the caller's access token).
 // It was never imported, so each of those threw "supabase is not defined" at
 // runtime: the admin check, the admin-email save and the test-email button all
@@ -54,8 +55,8 @@ function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
 // wants to work it out alone should not feel it was solved for them.
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
-   hint:"Every arcade cabinet ever built knew one prayer by heart. Your arrow keys still remember how it goes.",
-   howto:"Press Up Up Down Down Left Right Left Right anywhere on the page. Code lock cracked."},
+   hint:"Contra. Gradius. A thousand cabinets besides. Eight directions on the arrow keys — and then, because everyone forgets this part, the two buttons.",
+   howto:"Press Up Up Down Down Left Right Left Right B A anywhere on the page. (Konami Code)"},
   {trigger:"Pulse Overload",
    hint:"Circles demand repetition. The mark at the very top of the page was not made to be pressed once — and not slowly.",
    howto:"Click the 'Vault' icon in the header five times quickly. Fault spawned."},
@@ -94,17 +95,17 @@ const SECRET_LABELS = [
   // Half of these are nods to things older than this website. A hint may point
   // at the reference, never at the keystrokes.
   {trigger:"Magic Word",
-   hint:"Five letters from the oldest cave in software, back when caves were made of text. Adventurers have typed it for fifty years and been told, very politely, that nothing happens.",
+   hint:"Colossal Cave Adventure, 1976 — the game that invented the text adventure. It hid one magic word, five letters, and its famous reply to it was: nothing happens.",
    howto:"Type X-Y-Z-Z-Y outside text fields. (Colossal Cave Adventure)"},
   {trigger:"Degreelessness Mode",
-   hint:"Five keys made a certain space marine unkillable in 1993. Type them here and see whether this vault is as impressed as hell was.",
+   hint:"Doom, 1993. Five letters typed mid-game and nothing in hell could touch you. Every kid with a copy knew them by heart.",
    howto:"Type I-D-D-Q-D outside text fields. (Doom)"},
-  {trigger:"Deep Thought",
-   hint:"Two digits. The answer to life, the universe and everything — according to a book that also recommends carrying a towel.",
-   howto:"Type 4-2 outside text fields. (The Hitchhiker's Guide to the Galaxy)"},
-  {trigger:"Testing Protocol",
-   hint:"Four letters. A promise made to test subjects at the end of a very long facility, by a computer that was lying.",
-   howto:"Type C-A-K-E outside text fields. (Portal)"},
+  {trigger:"Motherlode",
+   hint:"The Sims, 2000. One word typed into the cheat box and your family was suddenly, obscenely rich. Seven letters, borrowed from the most famous last word in cinema.",
+   howto:"Type R-O-S-E-B-U-D outside text fields. (The Sims)"},
+  {trigger:"Blood Code",
+   hint:"Mortal Kombat on the Mega Drive shipped censored. Seven letters at the title screen put the arcade version back, and made the game infamous enough to invent an age rating.",
+   howto:"Type A-B-A-C-A-B-B outside text fields. (Mortal Kombat, Sega Mega Drive)"},
   {trigger:"Root Access",
    hint:"The mark at the top answers plain clicks by going home. Hold the key that literally means *control* while you click it, and it answers as something with privileges.",
    howto:"Ctrl+click (or Cmd+click) the header logo."},
@@ -131,10 +132,10 @@ const SCENES = {
       body:"you typed the oldest incantation in software.\nit did exactly what it has always done."},
   14:{kicker:"DEGREELESSNESS",    title:"GOD\nMODE",         accent:"#ff6b3d", ink:"#ffd9c9", panel:"#160806", back:"#0a0403",
       body:"five keys, and the vault stops being able to hurt you.\n1993 sends its regards."},
-  15:{kicker:"DEEP THOUGHT",      title:"42",                accent:"#8ab4f8", ink:"#dbe7ff", panel:"#060c18", back:"#02060d",
-      body:"seven and a half million years of computation for two digits.\nnobody wrote down the question."},
-  16:{kicker:"TESTING PROTOCOL",  title:"THE CAKE",          accent:"#f5a623", ink:"#ffe9c4", panel:"#161003", back:"#0a0802",
-      body:"there is no cake. there was never going to be any cake.\nthe vault thanks you for your participation."},
+  15:{kicker:"MOTHERLODE",        title:"ROSEBUD",           accent:"#4ade80", ink:"#d8ffe7", panel:"#04140c", back:"#020a06",
+      body:"one word, and a generation of suburban families became millionaires.\nthe vault's bank account remains, regrettably, fictional."},
+  16:{kicker:"BLOOD CODE",        title:"ABACABB",           accent:"#dc2626", ink:"#ffd7d7", panel:"#170707", back:"#0b0303",
+      body:"seven letters at the title screen turned a censored port back into the arcade.\nthe vault has nothing to bleed, but it remembers."},
   17:{kicker:"ROOT ACCESS",       title:"ELEVATED",          accent:"#22c55e", ink:"#d7ffe6", panel:"#04140b", back:"#020a06",
       body:"you held control and clicked the mark.\nit answered as something with privileges."},
   18:{kicker:"NO EXIT",           title:"DENIED",            accent:"#f43f5e", ink:"#ffd9e1", panel:"#170610", back:"#0b0308",
@@ -741,11 +742,20 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
             {fmt.n(p.dl)} {tr.dl_n}
             {hasImages&&<span onClick={()=>onDetail(p)} style={{marginLeft:8,color:"var(--sv-accent)",cursor:"pointer",textDecoration:"underline",fontSize:10}}>{(p.screenshots||[]).length+1} photo{((p.screenshots||[]).length+1)!==1?"s":""}</span>}
           </div>
-          {customDlBtn ?? (
-            hasBuilds(p) ? (<DownloadButtons prog={p} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr}/>) : (<button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"var(--sv-accent)",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
+          {/* Builds win. customDlBtn (the hold-to-charge button) is passed in for
+              EVERY card, and `customDlBtn ?? …` meant it always won — so a
+              program with Windows/macOS/Linux builds never showed those three
+              buttons, and the charge button called download() with no OS
+              target, which resolved to no URL at all. That is the whole of
+              "nothing happens when I press download". The charge button still
+              covers programs that have a single file instead of builds. */}
+          {hasBuilds(p) ? (
+            <DownloadButtons prog={p} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr}/>
+          ) : (customDlBtn ?? (
+            <button onClick={handleDownloadClick} style={{width:"100%",padding:"10px 0",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,background:"var(--sv-accent)",color:th.card,border:th.bdr,cursor:"pointer",letterSpacing:.5,...dlPress.btnStyle}} {...dlPress.handlers}>
               {loadingDl===p.id?tr.loading:((p.os||[]).includes("web")?tr.open:tr.dl)}
-            </button>)
-          )}
+            </button>
+          ))}
         </div>
       </div>
     </article>
@@ -1217,15 +1227,18 @@ export default function Vault() {
   },[foundSecrets.length, glitchFeatureActive]);
 
   useEffect(()=>{
-    const SEQ=["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight"];
+    // The real thing ends B, A — Contra, Gradius and a thousand others. Without
+    // those two it is just eight arrows, which is the boring half.
+    const SEQ=["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"];
     const handle=(e)=>{
       if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
-      if(SEQ[konamiRef.current]===e.key){
+      const key=e.key.length===1?e.key.toLowerCase():e.key;
+      if(SEQ[konamiRef.current]===key){
         konamiRef.current++;
         if(konamiRef.current===SEQ.length){
           konamiRef.current=0; setSecret1(true); markSecretFound(1); setTimeout(()=>setSecret1(false),14000);
         }
-      } else { konamiRef.current=e.key===SEQ[0]?1:0; }
+      } else { konamiRef.current=key===SEQ[0]?1:0; }
       if(e.key==="Escape"){
         escTimes.current=[...escTimes.current,Date.now()].filter(t=>Date.now()-t<2000);
         if(escTimes.current.length>=3){ escTimes.current=[]; fireSecret(18); }
@@ -1237,7 +1250,7 @@ export default function Vault() {
         }
         // the reference words. checked longest-first so a buffer holding two of
         // them can't award the shorter one by accident.
-        for(const [word,n] of [["xyzzy",13],["iddqd",14],["cake",16],["42",15]]){
+        for(const [word,n] of [["rosebud",15],["abacabb",16],["xyzzy",13],["iddqd",14]]){
           if(typedRef.current.includes(word)){ typedRef.current=""; fireSecret(n); break; }
         }
       }
@@ -1424,13 +1437,20 @@ export default function Vault() {
           body: JSON.stringify({ programs: l }),
         });
         if (!res.ok) {
-          console.error("Failed to sync to Supabase:", res.status, await res.text());
+          // This is how "uploads aren't working" stayed invisible: the program
+          // was written to IndexedDB, appeared in the grid, and the failed
+          // server write only ever reached the console.
+          const body = await res.text();
+          console.error("Failed to sync to Supabase:", res.status, body);
+          ping(`Saved locally, but the server rejected it (${res.status}). It will not appear for anyone else.`,"err");
         }
       } catch(e) {
         console.error("Failed to sync programs to server:", e);
+        ping("Saved locally, but could not reach the server.","err");
       }
     }catch(e){
       console.error("Failed to save programs:",e);
+      ping("Could not save that program.","err");
     }
   };
   const saveSett =async s=>{ try{await idbSet(K.sett,s);setSett(s);}catch(e){console.error("Failed to save settings:",e);} };
@@ -1552,12 +1572,42 @@ export default function Vault() {
     setProgs(ps=>ps.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p));
     fetch("/api/downloads",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({programId:prog.id})}).catch(()=>{});
+    // Send the link wherever it actually lives. Everything used to be pushed
+    // through /api/download, which only accepts this project's own Supabase
+    // storage — so a pasted Drive/MEGA/GitHub link came back 400 behind an
+    // <a download>, and the browser showed that as nothing happening at all.
     const t=target&&prog.downloads?prog.downloads[target]:null;
-    if(t&&t.url){const a=document.createElement("a");a.href=`/api/download?url=${encodeURIComponent(t.url)}&name=${encodeURIComponent(t.name||prog.name)}`;a.download=t.name||prog.name;a.click();}
+    const rawUrl=(t&&t.url)||null;
+    const fileName=(t&&t.name)||prog.name;
+
+    const send=(url,name)=>{
+      const r=resolveDownload(url,{supabaseUrl:process.env.NEXT_PUBLIC_SUPABASE_URL,name});
+      if(r.kind==="invalid"){ ping("That download link is not a valid address.","err"); return; }
+      if(r.kind==="proxy"){
+        // same-origin, so `download` is honoured and the file arrives named
+        const a=document.createElement("a");
+        a.href=r.href; a.download=name||"download";
+        document.body.appendChild(a); a.click(); a.remove();
+        return;
+      }
+      // somebody else's host: hand it to the browser. A MEGA link MUST go this
+      // way — its decryption key is in the '#' fragment and never reaches a
+      // server, so no proxy could ever fetch it.
+      // NOT window.open(url,"_blank","noopener"): passing noopener in the
+      // features string makes the call return null even when it succeeded, so
+      // the popup-blocked check below would fire on every single download.
+      // Open, then sever the opener on the handle instead.
+      const w=window.open(r.href,"_blank");
+      if(w){ try{ w.opener=null; }catch{ /* cross-origin, already severed */ } }
+      else ping(`Your browser blocked the ${hostLabel(r.host)} tab — allow pop-ups for this site.`,"err");
+    };
+
+    if(rawUrl) send(rawUrl,fileName);
     else if((prog.os||[]).includes("web")) window.open(prog.url||"https://softwarevault.dev","_blank");
     else if(prog.url) window.open(prog.url,"_blank");
-    else if(prog.fileUrl){const a=document.createElement("a");a.href=`/api/download?url=${encodeURIComponent(prog.fileUrl)}&name=${encodeURIComponent(prog.fileName||prog.name)}`;a.download=prog.fileName||prog.name;a.click();}
-    else if(prog.fileData){const a=document.createElement("a");a.href=prog.fileData;a.download=prog.fileName||prog.name;a.click();}
+    else if(prog.fileUrl) send(prog.fileUrl,prog.fileName||prog.name);
+    else if(prog.fileData){const a=document.createElement("a");a.href=prog.fileData;a.download=prog.fileName||prog.name;document.body.appendChild(a);a.click();a.remove();}
+    else ping("This program has no download attached yet.","err");
     setLoadingDl(null);
     if(detailProg?.id===prog.id) setDetailProg({...detailProg,dl:(detailProg.dl||0)+1});
   };
