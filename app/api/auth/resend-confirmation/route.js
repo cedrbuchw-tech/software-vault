@@ -56,10 +56,15 @@ export async function POST(req) {
       if (isEmailExists) {
           // Try to generate a recovery link and send a password reset email instead
           try {
+            // a recovery link belongs on the page that can actually take a new
+            // password, not on whatever page happened to send this request
+            const resetTarget = redirectTo
+              ? `${String(redirectTo).replace(/\/+$/, "")}/reset-password`
+              : undefined;
             const { data: recoveryData, error: recoveryError } = await supabase.auth.admin.generateLink({
               type: 'recovery',
               email,
-              options: { redirectTo: redirectTo || undefined },
+              options: { redirectTo: resetTarget },
             });
             if (recoveryError || !recoveryData?.properties?.action_link) {
               console.error('Supabase generateLink (recovery) error:', recoveryError, recoveryData);

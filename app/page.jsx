@@ -4,6 +4,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
 import { useBackdropClose, useScrollLock, Portal } from "@/lib/modal_ux";
 import { loadAppearance, applyAppearance } from "@/lib/appearance";
+// Used in six places below (every call that needs the caller's access token).
+// It was never imported, so each of those threw "supabase is not defined" at
+// runtime: the admin check, the admin-email save and the test-email button all
+// failed silently, and program saves went out with no Authorization header.
+import { supabase } from "@/lib/vault_client";
 
 const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
             dark:"vault_dark",lang:"vault_lang",sett:"vault_settings",found:"vault_found" };
@@ -35,44 +40,175 @@ function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
   );
 }
 
+// Three strings per secret, for three different readers:
+//
+//   trigger — its name, shown once you have it.
+//   howto   — the flat instruction. ADMIN PANEL ONLY. Never render this on the
+//             public site; it is the answer key.
+//   hint    — what a hunter sees for the secret they have NOT found yet.
+//
+// The hints are written to name the PLACE and the KIND of gesture, and to stop
+// there. "The mark at the top was not made to be pressed once" tells you where
+// to go and that repetition matters, without handing over the number. Someone
+// stuck should be able to act on one of these within a few seconds; someone who
+// wants to work it out alone should not feel it was solved for them.
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
-   hint:"Enter the hidden keyboard sequence",
+   hint:"Every arcade cabinet ever built knew one prayer by heart. Your arrow keys still remember how it goes.",
    howto:"Press Up Up Down Down Left Right Left Right anywhere on the page. Code lock cracked."},
   {trigger:"Pulse Overload",
-   hint:"Click the logo five times fast",
+   hint:"Circles demand repetition. The mark at the very top of the page was not made to be pressed once — and not slowly.",
    howto:"Click the 'Vault' icon in the header five times quickly. Fault spawned."},
   {trigger:"Core Breach",
-   hint:"Hold the hero title until the core unlocks",
+   hint:"The largest words here are not only for reading. Take hold of one and refuse to let go for a second or so.",
    howto:"Hold the main title for 1.2 seconds. Core unlocked."},
   {trigger:'Command "open"',
-   hint:'Type the vault access word outside inputs',
+   hint:"This vault has no keyhole; it listens instead. Say the plainest word there is for what you want it to do — with no box to type it into.",
    howto:'Type O-P-E-N outside text fields. Gate opened.'},
   {trigger:"Audit Spike",
-   hint:"Probe the counters with a fast tap pattern",
+   hint:"Numbers get nervous when they are watched too closely. The tally under the heading flinches if you keep tapping it.",
    howto:"Click the program/download/featured counters five times quickly. Audit spiked."},
   {trigger:"Faultline Trace",
-   hint:"Hold Alt while hovering the footer Vault label",
+   hint:"At the very bottom the name repeats itself. Rest on it a while — but hold down the key that means *alternate* the whole time.",
    howto:"Hover footer \"Vault\" text while holding Alt for 2.5 seconds. Trace detected."},
   {trigger:"Card Fault",
-   hint:"Hold any program title until it glitches",
+   hint:"Every card in the grid carries a name. Grip one long enough and the letters lose their nerve.",
    howto:"Hold a program title for 1.5 seconds. Card fault triggered."},
   {trigger:"Debug Probe",
-   hint:"Type debug in the search field",
+   hint:"The search box hunts for programs. Ask it instead for the word an engineer types when nothing works, and commit to it.",
    howto:"Type debug in search and press Enter. Debug mode active."},
   {trigger:"Schema Override",
-   hint:"Shift-click the theme toggle",
+   hint:"Day and night trade places at a single switch. Press it the way you would press anything to select a whole range at once.",
    howto:"Shift+click the theme switch. Schema override injected."},
   {trigger:"Schema Flip",
-   hint:"Flip themes until the schema fractures",
+   hint:"Then do it again. And again. The schema can only take so many sunrises in a row before something in it gives.",
    howto:"Toggle theme ten times rapidly. Schema fractured."},
   {trigger:"Data Cascade",
-   hint:"Right-click a program card to trigger cascade",
+   hint:"Cards answer to the left button all day long. Ask one a question with the other side of the mouse.",
    howto:"Right-click and hold on any program card for 2 seconds. Data cascade initiated."},
   {trigger:"Vault Resonance",
-   hint:"Click the featured badge repeatedly until resonance",
+   hint:"One card wears a star it did not earn. Press the star until the vault hums back — more times than seems reasonable.",
    howto:"Click the featured badge (★) 7 times rapidly. Vault resonates."},
+
+  // ── 13–20 ────────────────────────────────────────────────────────────────
+  // Half of these are nods to things older than this website. A hint may point
+  // at the reference, never at the keystrokes.
+  {trigger:"Magic Word",
+   hint:"Five letters from the oldest cave in software, back when caves were made of text. Adventurers have typed it for fifty years and been told, very politely, that nothing happens.",
+   howto:"Type X-Y-Z-Z-Y outside text fields. (Colossal Cave Adventure)"},
+  {trigger:"Degreelessness Mode",
+   hint:"Five keys made a certain space marine unkillable in 1993. Type them here and see whether this vault is as impressed as hell was.",
+   howto:"Type I-D-D-Q-D outside text fields. (Doom)"},
+  {trigger:"Deep Thought",
+   hint:"Two digits. The answer to life, the universe and everything — according to a book that also recommends carrying a towel.",
+   howto:"Type 4-2 outside text fields. (The Hitchhiker's Guide to the Galaxy)"},
+  {trigger:"Testing Protocol",
+   hint:"Four letters. A promise made to test subjects at the end of a very long facility, by a computer that was lying.",
+   howto:"Type C-A-K-E outside text fields. (Portal)"},
+  {trigger:"Root Access",
+   hint:"The mark at the top answers plain clicks by going home. Hold the key that literally means *control* while you click it, and it answers as something with privileges.",
+   howto:"Ctrl+click (or Cmd+click) the header logo."},
+  {trigger:"No Exit",
+   hint:"Your keyboard has a key for leaving. Press it three times in a row and find out whether this place honours it.",
+   howto:"Press Escape three times within two seconds."},
+  {trigger:"Compression",
+   hint:"The vault assumes it has room to breathe. Take that room away — drag the window narrow until it is barely a column — and watch what it does when cornered.",
+   howto:"Resize the window below 520px wide, having been at least 800px this session."},
+  {trigger:"Stillness",
+   hint:"Everything else here rewards doing something. One thing rewards the exact opposite: put your hands in your lap and leave the page completely untouched for the better part of a minute.",
+   howto:"No mouse, key or scroll input for 45 seconds while the tab is visible."},
 ];
+
+/**
+ * Secrets 13–20 all share one overlay.
+ *
+ * The first twelve each have their own hand-built panel, which is why adding to
+ * them meant copying forty lines of JSX per secret. These are described as data
+ * instead, so a new one costs a single entry.
+ */
+const SCENES = {
+  13:{kicker:"MAGIC WORD",        title:"NOTHING\nHAPPENS.", accent:"#7fdc9a", ink:"#dff7e6", panel:"#04120a", back:"#020905",
+      body:"you typed the oldest incantation in software.\nit did exactly what it has always done."},
+  14:{kicker:"DEGREELESSNESS",    title:"GOD\nMODE",         accent:"#ff6b3d", ink:"#ffd9c9", panel:"#160806", back:"#0a0403",
+      body:"five keys, and the vault stops being able to hurt you.\n1993 sends its regards."},
+  15:{kicker:"DEEP THOUGHT",      title:"42",                accent:"#8ab4f8", ink:"#dbe7ff", panel:"#060c18", back:"#02060d",
+      body:"seven and a half million years of computation for two digits.\nnobody wrote down the question."},
+  16:{kicker:"TESTING PROTOCOL",  title:"THE CAKE",          accent:"#f5a623", ink:"#ffe9c4", panel:"#161003", back:"#0a0802",
+      body:"there is no cake. there was never going to be any cake.\nthe vault thanks you for your participation."},
+  17:{kicker:"ROOT ACCESS",       title:"ELEVATED",          accent:"#22c55e", ink:"#d7ffe6", panel:"#04140b", back:"#020a06",
+      body:"you held control and clicked the mark.\nit answered as something with privileges."},
+  18:{kicker:"NO EXIT",           title:"DENIED",            accent:"#f43f5e", ink:"#ffd9e1", panel:"#170610", back:"#0b0308",
+      body:"you asked to leave three times.\nthe vault logged each request and kept the door shut."},
+  19:{kicker:"COMPRESSION",       title:"SQUEEZED",          accent:"#38bdf8", ink:"#d5efff", panel:"#04121a", back:"#02080d",
+      body:"you took the room away.\neverything still fits — but only just."},
+  20:{kicker:"STILLNESS",         title:"PATIENCE",          accent:"#c8a84b", ink:"#f3e7c4", panel:"#12100a", back:"#080704",
+      body:"you did nothing at all, for long enough that the vault noticed.\nit had begun to think nobody ever would."},
+};
+
+/** One panel, driven by SCENES. RGB-split title, scanlines, no bespoke markup. */
+function SecretScene({ n, scene, dl, next, foundCount }) {
+  if (!scene) return null;
+  const lines = scene.title.split("\n");
+  const layer = (color, anim, extra) => (
+    <div aria-hidden="true" style={{ position:"absolute", top:0, left:0, color, mixBlendMode:"screen",
+      animation:anim, fontFamily:"'Anton',sans-serif", fontSize:54, lineHeight:1, letterSpacing:.5, ...extra }}>
+      {lines.map((l,i)=><div key={i}>{l}</div>)}
+    </div>
+  );
+  return (
+    <Portal>
+    <div className="sv-overlay" style={{position:"fixed",inset:0,background:scene.back,display:"flex",alignItems:"center",
+                 justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .15s ease",pointerEvents:"none"}}>
+      <div className="sv-scanlines" style={{position:"relative",background:scene.panel,
+           border:`2px solid ${scene.accent}`,padding:"44px 44px 38px",maxWidth:500,width:"100%",
+           boxShadow:`8px 8px 0 rgba(0,0,0,.6), 0 0 70px ${scene.accent}22`,
+           animation:"modalIn .22s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto",overflow:"hidden"}}>
+        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:3,
+                     color:scene.accent,opacity:.8,marginBottom:18}}>
+          SECRET {String(n).padStart(2,"0")}/20 — {scene.kicker}
+        </div>
+        <div style={{position:"relative",marginBottom:20,color:scene.ink,fontFamily:"'Anton',sans-serif",
+                     fontSize:54,lineHeight:1,letterSpacing:.5}}>
+          {layer(scene.accent,"glitch1 2.4s steps(1) infinite")}
+          {layer("#00e5ff","glitch2 3.1s steps(1) infinite",{opacity:.55})}
+          <div style={{position:"relative"}}>{lines.map((l,i)=><div key={i}>{l}</div>)}</div>
+        </div>
+        <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,lineHeight:1.9,
+                   color:scene.ink,opacity:.72,margin:0,whiteSpace:"pre-line"}}>{scene.body}</p>
+        <NextUp next={next} foundCount={foundCount} color={scene.accent}
+                line={`${scene.accent}33`} text={`${scene.ink}b0`} />
+        <SecretDownloadCard dl={dl} accentColor={scene.accent} textColor={scene.ink}
+          bgColor={`${scene.accent}0d`} borderColor={`${scene.accent}2e`} />
+      </div>
+    </div>
+    </Portal>
+  );
+}
+
+/**
+ * The forward-looking half of every secret overlay.
+ *
+ * Each overlay used to end with a hard-coded instruction, and every one of them
+ * described a DIFFERENT secret than the one it belonged to — #11 told you to
+ * press the featured star (that is #12) and #12 told you to right-click a card
+ * (that is #11), so finishing the hunt pointed you back at something you had
+ * already done. Driving it from the live "next unfound secret" instead means it
+ * can never drift out of step, and it survives finding them out of order.
+ */
+function NextUp({ next, foundCount, color, line, text }) {
+  return (
+    <div style={{ borderTop: `1px solid ${line}`, marginTop: 18, paddingTop: 14 }}>
+      <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 9, letterSpacing: 2,
+                    color, opacity: .85, marginBottom: 7 }}>
+        {next ? `STILL HIDDEN — ${foundCount}/20 FOUND` : `ALL TWENTY FOUND`}
+      </div>
+      <p style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11.5, lineHeight: 1.85,
+                  color: text, margin: 0, fontStyle: next ? "italic" : "normal" }}>
+        {next ? next.hint : "there is nothing else buried here. the vault has given up everything it had."}
+      </p>
+    </div>
+  );
+}
 
 const fmt = {
   n: n => n>=1000?(n/1000).toFixed(1)+"k":String(n||0),
@@ -458,7 +594,8 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLib
   const catLabel=catIdx>0?(tr.cats[catIdx]||prog.cat):prog.cat;
   const doLike=()=>{if(!liked){setHeartAnim(true);setTimeout(()=>setHeartAnim(false),420);}onLike(prog.id);};
   return(
-    <div {...backdrop} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:20}}>
+    <Portal>
+    <div {...backdrop} className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:20}}>
       <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,width:"100%",maxWidth:700,maxHeight:"92vh",overflowY:"auto",boxShadow:`10px 10px 0 ${th.blk}`,animation:"fadeIn .15s ease"}}>
         {imgs.length>0&&(
           <div style={{position:"relative",background:"#000",height:300,flexShrink:0}}>
@@ -501,6 +638,7 @@ function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLib
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -667,8 +805,10 @@ function SecretLock({onClose}) {
     return ()=>clearTimeout(t);
   },[secondsLeft]);
   return(
+    <Portal>
     <div
       onClick={unlocked?onClose:undefined}
+      className="sv-overlay"
       style={{
         position:"fixed",inset:0,zIndex:9001,
         cursor:unlocked?"pointer":"default",
@@ -692,6 +832,7 @@ function SecretLock({onClose}) {
         {unlocked ? "click anywhere to close" : `closing in ${secondsLeft}s`}
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -751,10 +892,28 @@ export default function Vault() {
           const j = await r.json();
           setIsAdmin(!!j.authed);
           setHasAdmin(!!j.exists);
-          if (j.authed) setPage("admin");
           if (j.adminEmail) setAdminEmail(j.adminEmail);
+          if (j.problem) {
+            console.warn("[vault] admin panel hidden:", j.problem);
+            // Shown on screen when something is actually broken, or when the
+            // site has no admin at all and whoever is here has to become one.
+            // A normal member on a site that already has admins just sees
+            // nothing, which is correct — it isn't their problem to solve.
+            if (j.problemKind === "error" || !j.exists) setAdminProblem(j.problem);
+            else setAdminProblem("");
+          } else setAdminProblem("");
+        } else {
+          // a failed check used to be indistinguishable from "you're not an
+          // admin" — the panel silently wasn't there and nothing said why
+          const body = await r.json().catch(() => ({}));
+          const why = body.error || `HTTP ${r.status}`;
+          console.warn("[vault] admin check failed:", why);
+          setAdminProblem(`Admin check failed: ${why}`);
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        console.warn("[vault] admin check could not run:", e);
+        setAdminProblem(`Admin check could not run: ${e?.message || e}`);
+      }
     })();
   }, [user]);
   const [sett,setSett]             = useState({ann:{text:"",type:"info",visible:false},support:{url:"",msg:"",visible:false},heroSub:"",secretDownloads:[],twoFactorEnabled:false});
@@ -786,7 +945,7 @@ export default function Vault() {
   const [annDraft,setAnnDraft]     = useState({text:"",type:"info"});
   const [ppDraft,setPpDraft]       = useState({url:"",msg:"",visible:false});
   const [twoFactorEnabledDraft,setTwoFactorEnabledDraft] = useState(false);
-  const [sdDraft,setSdDraft]       = useState(Array(12).fill(null).map(()=>({...BLANK_DL})));
+  const [sdDraft,setSdDraft]       = useState(Array(20).fill(null).map(()=>({...BLANK_DL})));
   const [loadingDl,setLoadingDl]   = useState(null);
   const [busy,setBusy]             = useState(false);
   const [toast,setToast]           = useState(null);
@@ -806,6 +965,8 @@ export default function Vault() {
   const [secret10,setSecret10] = useState(false);
   const [secret11,setSecret11] = useState(false);
   const [secret12,setSecret12] = useState(false);
+  // 13-20 share one overlay, so they share one piece of state: which is showing.
+  const [activeSecret,setActiveSecret] = useState(null);
   const [s7CardName,setS7CardName] = useState("");
   const [chargeProgress,setChargeProgress] = useState(0);
 
@@ -826,6 +987,17 @@ export default function Vault() {
   const [loginMessage,setLoginMessage] = useState("");
   const [adminEmail,setAdminEmail] = useState("");
   const [adminEmailDraft,setAdminEmailDraft] = useState("");
+  const [users,setUsers]           = useState([]);
+  const [userQuery,setUserQuery]   = useState("");
+  const [usersBusy,setUsersBusy]   = useState(false);
+  const [usersErr,setUsersErr]     = useState("");
+  const [usersTruncated,setUsersTruncated] = useState(false);
+  const [userSaving,setUserSaving] = useState(null);
+  const [reportBusy,setReportBusy] = useState(false);
+  const [reportMsg,setReportMsg]   = useState(null);
+  // why the admin panel isn't showing, when it isn't
+  const [adminProblem,setAdminProblem] = useState("");
+  const [hintOpen,setHintOpen]     = useState(false);
   const [termLines,setTermLines]   = useState([]);
   const [logoDisplay,setLogoDisplay] = useState("SoftwareVault");
 
@@ -844,6 +1016,8 @@ export default function Vault() {
   const heroTimerRef   = useRef(null);
   const footerClickRef = useRef(0);
   const footerTimerRef = useRef(null);
+  const escTimes       = useRef([]);
+  const everBroad      = useRef(false);
   const heroHoldRef      = useRef(false);
   const altHoverTimerRef = useRef(null);
   const holdTimerRef     = useRef(null);
@@ -904,8 +1078,11 @@ export default function Vault() {
             setHasAdmin(!!j.exists);
             if (j.authed) { setIsAdmin(true); }
             if (j.adminEmail) setAdminEmail(j.adminEmail);
+          } else {
+            const body = await r.json().catch(() => ({}));
+            console.warn("[vault] admin check failed:", r.status, body.error || "");
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) { console.warn("[vault] admin check could not run:", e); }
 
         // Try to load programs from Supabase first
         let loadedProgs = null;
@@ -937,7 +1114,7 @@ export default function Vault() {
           setAnnDraft({text:savedSett.ann?.text||"",type:savedSett.ann?.type||"info"});
           setPpDraft({url:savedSett.support?.url||"",msg:savedSett.support?.msg||"",visible:savedSett.support?.visible||false});
           setTwoFactorEnabledDraft(savedSett.twoFactorEnabled||false);
-          const dls=Array(12).fill(null).map((_,i)=>savedSett.secretDownloads?.[i]||{...BLANK_DL});
+          const dls=Array(20).fill(null).map((_,i)=>savedSett.secretDownloads?.[i]||{...BLANK_DL});
           setSdDraft(dls);
         }
         const dk=ls.get(K.dark);
@@ -956,9 +1133,12 @@ export default function Vault() {
   useEffect(()=>{ if(ready) ls.set(K.lang,lang); },[lang,ready]);
   useEffect(()=>{
     if(typeof document === "undefined") return;
-    for(let i=0;i<=10;i++) document.documentElement.classList.remove(`corrupt-lvl-${i}`);
+    // used to clear 0-10 and leave lvl-11/12 stuck on the element for good
+    for(let i=0;i<=12;i++) document.documentElement.classList.remove(`corrupt-lvl-${i}`);
     if(!hideCorruption && foundSecrets.length > 0){
-      const lvl = Math.min(12, foundSecrets.length);
+      // 20 secrets mapped onto the 12 visual stages, so the ladder still ends
+      // at full corruption on the last find
+      const lvl = Math.min(12, Math.round(foundSecrets.length * 12 / 20));
       document.documentElement.classList.add(`corrupt-lvl-${lvl}`);
     }
   },[foundSecrets, hideCorruption]);
@@ -974,13 +1154,34 @@ export default function Vault() {
     else document.documentElement.classList.remove('party-active');
   },[secret1,secret2,secret3,secret4,secret5,secret6,secret7,secret8,secret9,secret10,secret11,secret12,partySecret]);
 
+  // The lowest-numbered secret still missing — the one the hint talks about.
+  // Derived, so it moves on by itself the moment that secret is found.
+  const nextSecret=useMemo(()=>{
+    for(let n=1;n<=20;n++){
+      if(!foundSecrets.includes(n)) return {n,...SECRET_LABELS[n-1]};
+    }
+    return null;
+  },[foundSecrets]);
+
+  // collapse the hint again whenever it moves on to a new secret, so the next
+  // one has to be asked for too rather than being handed over automatically
+  useEffect(()=>{ setHintOpen(false); },[nextSecret?.n]);
+
   const markSecretFound=async(n)=>{
     if(foundRef.current.includes(n)) return;
     const nf=[...foundRef.current,n];
     foundRef.current=nf; setFoundSecrets(nf);
     setStarAnim(n); setTimeout(()=>setStarAnim(null),1800);
     await Promise.resolve(ls.set(K.found,JSON.stringify(nf)));
-    if(nf.length===12) setTimeout(()=>setAllFoundModal(true),2600);
+    if(nf.length===20) setTimeout(()=>setAllFoundModal(true),2600);
+  };
+
+  // show a data-driven secret (13-20) and record it
+  const fireSecret=(n,ms=13000)=>{
+    if(activeSecret===n) return;
+    setActiveSecret(n);
+    markSecretFound(n);
+    setTimeout(()=>setActiveSecret(a=>a===n?null:a),ms);
   };
 
   const resetCorruption = async ()=>{
@@ -1003,7 +1204,7 @@ export default function Vault() {
   };
 
   useEffect(()=>{
-    if(foundSecrets.length===12 && !glitchFeatureActive){
+    if(foundSecrets.length===20 && !glitchFeatureActive){
       setHideCorruption(false);
       setFinalSurge(true);
       setTimeout(()=>{
@@ -1025,16 +1226,65 @@ export default function Vault() {
           konamiRef.current=0; setSecret1(true); markSecretFound(1); setTimeout(()=>setSecret1(false),14000);
         }
       } else { konamiRef.current=e.key===SEQ[0]?1:0; }
+      if(e.key==="Escape"){
+        escTimes.current=[...escTimes.current,Date.now()].filter(t=>Date.now()-t<2000);
+        if(escTimes.current.length>=3){ escTimes.current=[]; fireSecret(18); }
+      }
       if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){
-        typedRef.current=(typedRef.current+e.key.toLowerCase()).slice(-8);
+        typedRef.current=(typedRef.current+e.key.toLowerCase()).slice(-12);
         if(typedRef.current.includes("open")){
           typedRef.current=""; setSecret4(true); markSecretFound(4); setTimeout(()=>setSecret4(false),12000);
+        }
+        // the reference words. checked longest-first so a buffer holding two of
+        // them can't award the shorter one by accident.
+        for(const [word,n] of [["xyzzy",13],["iddqd",14],["cake",16],["42",15]]){
+          if(typedRef.current.includes(word)){ typedRef.current=""; fireSecret(n); break; }
         }
       }
     };
     document.addEventListener("keydown",handle);
     return ()=>document.removeEventListener("keydown",handle);
-  },[]);
+    // fireSecret is rebuilt every render; depending on it would rebind this
+    // listener on every render for no gain. activeSecret is the only value it
+    // actually reads, so that is the only dependency that matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeSecret]);
+
+  // #19 — only counts as a squeeze if there WAS room to take away, so a phone
+  // (permanently narrow) never trips it just by existing.
+  useEffect(()=>{
+    if(typeof window==="undefined") return;
+    const onResize=()=>{
+      if(window.innerWidth>=800) everBroad.current=true;
+      if(everBroad.current&&window.innerWidth<520) fireSecret(19);
+    };
+    onResize();
+    window.addEventListener("resize",onResize);
+    return ()=>window.removeEventListener("resize",onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeSecret]);
+
+  // #20 — the one secret you find by doing nothing. A hidden tab does not count
+  // as stillness; that is just a tab nobody is looking at.
+  useEffect(()=>{
+    if(typeof window==="undefined") return;
+    let timer=null;
+    const arm=()=>{
+      clearTimeout(timer);
+      if(document.visibilityState!=="visible") return;
+      timer=setTimeout(()=>{ if(document.visibilityState==="visible") fireSecret(20); },45000);
+    };
+    const events=["mousemove","mousedown","keydown","wheel","touchstart","scroll"];
+    events.forEach(ev=>window.addEventListener(ev,arm,{passive:true}));
+    document.addEventListener("visibilitychange",arm);
+    arm();
+    return ()=>{
+      clearTimeout(timer);
+      events.forEach(ev=>window.removeEventListener(ev,arm));
+      document.removeEventListener("visibilitychange",arm);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeSecret]);
 
   const handleSearchKeyDown=(e)=>{
     if(e.key==="Enter" && search.trim().toLowerCase()==="debug" && !foundSecrets.includes(8)){
@@ -1072,18 +1322,28 @@ export default function Vault() {
 
   useEffect(()=>{
     if(!secret1){setTermLines([]);clearInterval(termTimerRef.current);return;}
-    const LINES=["VAULT_OS v1.0.0 — BOOT SEQUENCE","────────────────────────────────────","> scanning for intrusion vectors...","> THREAT IDENTIFIED: ↑↑↓↓←→←→","> source: HUMAN / CURIOUS","> threat level: NON-HOSTILE","> granting maximum clearance...","","> ── CLASSIFIED BROADCAST ──────────","","  circles demand repetition.","  some symbols were made to be pressed.","  not once. not in haste.","  but in a rhythm. in a pattern.","","  the vault shows what seekers know to find.","  there is a marked thing at the top.","","> — v","","> CHANNEL CLOSING IN 5..."];
+    // the broadcast carries whatever is still hidden, rather than a fixed
+    // verse about the logo that goes stale the moment you find it
+    const broadcast = nextSecret
+      ? nextSecret.hint.split(". ").map((part,i,arr) =>
+          "  " + part.toLowerCase() + (i < arr.length - 1 ? "." : ""))
+      : ["  nothing else is buried here.", "  you have all twelve."];
+    const LINES=["VAULT_OS v1.0.0 — BOOT SEQUENCE","────────────────────────────────────","> scanning for intrusion vectors...","> THREAT IDENTIFIED: ↑↑↓↓←→←→","> source: HUMAN / CURIOUS","> threat level: NON-HOSTILE","> granting maximum clearance...","","> ── CLASSIFIED BROADCAST ──────────","",...broadcast,"","> — v","","> CHANNEL CLOSING IN 5..."];
     let i=0; clearInterval(termTimerRef.current);
     termTimerRef.current=setInterval(()=>{
       if(i<LINES.length){setTermLines(p=>[...p,LINES[i]]);i++;}
       else clearInterval(termTimerRef.current);
     },150);
     return ()=>clearInterval(termTimerRef.current);
-  },[secret1]);
+  },[secret1,nextSecret]);
 
   const GLITCH="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^";
-  const handleLogoClick=()=>{
-    setPage("home"); setIsAdmin(false);
+  const handleLogoClick=(e)=>{
+    // ctrl/cmd turns "go home" into something with privileges
+    if(e&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); fireSecret(17); return; }
+    // the logo goes home; it must not take your admin rights with it, or the
+    // Admin button vanishes until the page is reloaded
+    setPage("home");
     logoClicksRef.current++;
     clearTimeout(logoTimerRef.current);
     if(logoClicksRef.current>=5){
@@ -1344,6 +1604,69 @@ export default function Vault() {
       }
     }catch(e){console.error("Email save error:", e);ping('Request failed','err');}
   };
+  // ---- who may see the admin panel -----------------------------------------
+  // Admin rights are the `is_admin` flag on a profile. Handing it to someone
+  // here is all it takes: the panel appears for them the next time their
+  // session is checked, and every admin-only API route reads the same flag.
+  const loadUsers=async()=>{
+    setUsersErr(""); setUsersBusy(true);
+    try{
+      const headers=await authHeaders();
+      if(!headers.Authorization){ setUsersErr("Sign in as an admin first."); return; }
+      const r=await fetch(`/api/admin/users?q=${encodeURIComponent(userQuery.trim())}`,{headers});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||"Could not load users");
+      setUsers(j.users||[]);
+      setUsersTruncated(!!j.truncated);
+    }catch(e){ setUsersErr(e?.message||"Could not load users"); }
+    finally{ setUsersBusy(false); }
+  };
+  const setUserAdmin=async(u,next)=>{
+    setUsersErr(""); setUserSaving(u.id);
+    try{
+      const r=await fetch('/api/admin/users',{
+        method:'POST',
+        headers:await authHeaders({'Content-Type':'application/json'}),
+        body:JSON.stringify({userId:u.id,isAdmin:next}),
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||"Could not update the user");
+      setUsers(list=>list.map(x=>x.id===u.id?{...x,...j.user}:x));
+      ping(next?`${u.username||u.email} is now an admin.`:`${u.username||u.email} is no longer an admin.`);
+    }catch(e){ setUsersErr(e?.message||"Could not update the user"); ping(e?.message||"Could not update the user","err"); }
+    finally{ setUserSaving(null); }
+  };
+  // load the list the first time the tab is opened, and after signing in again
+  useEffect(()=>{
+    if(page==="admin"&&adminTab==="users"&&isAdmin) loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[page,adminTab,isAdmin]);
+
+  // The monthly report is scheduled by vercel.json, which only exists in
+  // production — locally nothing ever fires it. These buttons run it by hand so
+  // it can actually be tested, and report what the server said either way.
+  const runMonthlyReport=async(action,period)=>{
+    setReportBusy(true); setReportMsg(null);
+    try{
+      const headers=await authHeaders();
+      if(!headers.Authorization){ setReportMsg({bad:true,text:"Sign in as an admin first."}); return; }
+      const qs=`month=${period==="current"?"current":"previous"}${action==="preview"?"&preview=1":""}`;
+      const r=await fetch(`/api/admin/monthly-report?${qs}`,{headers});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok){ setReportMsg({bad:true,text:j.error||`Failed (${r.status})`}); return; }
+      if(action==="preview"){
+        const s=j.stats||{};
+        setReportMsg({bad:false,text:
+          `${j.month} — ${s.newUsersThisMonth ?? 0} new users, ${s.totalUsers ?? 0} total, `
+          +`${s.totalDownloads ?? 0} downloads, ${s.totalLikes ?? 0} likes.\nWould be sent to ${j.recipient||"(no recipient)"}.`});
+      } else {
+        setReportMsg({bad:false,text:j.message||"Report sent."});
+        ping("Monthly report sent.");
+      }
+    }catch(e){ setReportMsg({bad:true,text:e?.message||"Request failed"}); }
+    finally{ setReportBusy(false); }
+  };
+
   const sendTestEmail=async()=>{
     if(!adminEmailDraft){ping("Enter an email address first.","err");return;}
     try{
@@ -1391,7 +1714,9 @@ export default function Vault() {
   const regVis=vis.filter(p=>!p.featured);
   const totalDl=progs.reduce((a,p)=>a+(p.dl||0),0);
   const topProg=[...progs].sort((a,b)=>(b.dl||0)-(a.dl||0))[0];
-  const corruptionLevel = foundSecrets.length;
+  // inline styles below compare against 8-12, so keep this on the same 12-step
+  // scale the CSS uses rather than letting it run to 20
+  const corruptionLevel = Math.min(12, Math.round(foundSecrets.length * 12 / 20));
   const corruptionLabel = corruptionLevel === 0 ? "stable" : corruptionLevel < 3 ? "frayed" : corruptionLevel < 5 ? "glitched" : corruptionLevel < 8 ? "fractured" : corruptionLevel < 10 ? "severed" : corruptionLevel < 12 ? "shattered" : "destroyed";
   const corruptionColor = corruptionLevel === 0 ? "#4ade80" : corruptionLevel < 3 ? "#facc15" : corruptionLevel < 5 ? "#fb923c" : corruptionLevel < 8 ? "#fb7185" : corruptionLevel < 10 ? "#dc2626" : corruptionLevel < 12 ? "#7c2d12" : "#1f1f1f";
   const ann=sett.ann||{}, sup=sett.support||{}, annC=th.annC[ann.type]||th.annC.info;
@@ -1471,7 +1796,8 @@ export default function Vault() {
   return(
     <div id="sv-root" className={postGlitch?"glitchy":""} style={{position:"relative",minHeight:"100vh",overflow:"hidden",background:th.bg,color:th.blk,fontFamily:"'IBM Plex Mono','Courier New',monospace",animation:partyMode?"partyShift .65s linear infinite":"none"}}>
       {isInitializing&&(
-        <div style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:"fadein .4s ease, fadeout .5s ease 0.5s forwards",overflow:"hidden",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:"fadein .4s ease, fadeout .5s ease 0.5s forwards",overflow:"hidden",pointerEvents:"none"}}>
           <div style={{position:"absolute",inset:0}}>
             <div style={{position:"absolute",top:"15%",right:"15%",width:250,height:250,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.08,borderRadius:"50%",filter:"blur(50px)"}}/>
             <div style={{position:"absolute",bottom:"15%",left:"10%",width:180,height:180,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.05,borderRadius:"50%",filter:"blur(40px)"}}/>
@@ -1507,6 +1833,7 @@ export default function Vault() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -1553,17 +1880,15 @@ export default function Vault() {
         .btn-animated.glow{animation:buttonGlow 3s ease infinite;}
         /* Corruption overlay visuals are now scoped to html.corrupt-lvl-* in global.css */
         /* Hero chromatic/glitch effect when corruption levels active */
-        html.corrupt-lvl-4 .hero-title span,
-        html.corrupt-lvl-5 .hero-title span,
-        html.corrupt-lvl-6 .hero-title span,
-        html.corrupt-lvl-7 .hero-title span,
-        html.corrupt-lvl-8 .hero-title span,
-        html.corrupt-lvl-9 .hero-title span,
-        html.corrupt-lvl-10 .hero-title span {
+        /* the hero's own split now comes from the same --cr-split token as the
+           rest of the page (global.css), instead of a fixed 2px that stopped
+           at level 10 and used a different pair of colours to everything else */
+        html[class*="corrupt-lvl-"] .hero-title span {
           position: relative;
-          text-shadow: 2px 0 0 rgba(224,61,12,.92), -2px 0 0 rgba(0,255,255,.6);
-          animation: heroGlitch 1.8s steps(2) infinite;
+          animation: heroGlitch 2.6s steps(2) infinite;
         }
+        html[data-motion="reduced"] .hero-title span,
+        html[data-glitch="off"] .hero-title span { animation: none; }
         @keyframes heroGlitch{0%{transform:none}25%{transform:translateX(2px)}50%{transform:translateX(-1px)}75%{transform:translateX(1px)}100%{transform:none}}
         @keyframes glitchLines{0%{background-position:0 0}100%{background-position:0 40px}}
         @keyframes glitchSweep{0%{transform:translateX(0)}50%{transform:translateX(100%)}100%{transform:translateX(0)}}
@@ -1572,13 +1897,16 @@ export default function Vault() {
       `}</style>
 
       {toast&&(
+        <Portal>
         <div style={{position:"fixed",top:20,right:20,zIndex:9999,padding:"10px 18px",border:th.bdr,background:toast.type==="err"?th.blk:th.card,color:toast.type==="err"?th.card:th.blk,fontFamily:"'IBM Plex Mono',monospace",fontSize:12,filter:"drop-shadow(3px 3px 0 rgba(0,0,0,.3))",animation:"toastIn .25s cubic-bezier(.22,1,.36,1) forwards"}}>
           {toast.msg}
         </div>
+        </Portal>
       )}
 
       {finalSurge&&(
-        <div style={{position:"fixed",inset:0,zIndex:9400,background:"rgba(8,8,10,.94)",display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",padding:20}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,zIndex:9400,background:"rgba(8,8,10,.94)",display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",padding:20}}>
           <div style={{position:"relative",width:"100%",maxWidth:520,padding:"44px 36px",border:"2px solid var(--sv-accent)",background:"#060608",boxShadow:"0 0 0 8px rgba(224,61,12,.15)",overflow:"hidden",animation:"fadeIn .2s ease both"}}>
             <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 20% 20%,rgba(224,61,12,.08),transparent 22%),radial-gradient(circle at 80% 80%,rgba(255,255,255,.08),transparent 20%)"}}/>
             <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,var(--sv-accent),transparent)",animation:"glitchSweep 1.5s ease infinite"}}/>
@@ -1594,6 +1922,7 @@ export default function Vault() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {ann.visible&&ann.text&&(
@@ -1646,17 +1975,42 @@ export default function Vault() {
             onMouseUp={e=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}>
             {isDark?"☀":"◑"}
           </button>
+          {isAdmin&&(
+            /* admins used to be dumped straight into the panel on sign-in and
+               had no way back once they left it — this is the way in and out */
+            <button onClick={()=>setPage(page==="admin"?"home":"admin")}
+              style={{padding:"6px 10px",border:th.bdr,background:page==="admin"?"var(--sv-accent)":th.card,
+                      color:page==="admin"?"#fff":th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",
+                      fontSize:11,filter:`drop-shadow(2px 2px 0 ${th.sh2.split(" ").slice(3).join(" ")})`}}>
+              {page==="admin"?tr.vv:tr.adh}
+            </button>
+          )}
           <AuthButton lang={lang} th={th} partyUnlocked={partyUnlocked} partyMode={partyMode} onTogglePartyMode={setUserPartyEnabled} />
         </div>
       </header>
+
+      {user&&adminProblem&&(
+        <div style={{padding:"10px 40px",borderBottom:`2px solid var(--sv-accent)`,background:th.card,
+                     fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.blk,lineHeight:1.7,
+                     display:"flex",gap:12,alignItems:"flex-start",justifyContent:"space-between"}}>
+          <span><strong>Admin panel hidden:</strong> {adminProblem}</span>
+          <button onClick={()=>setAdminProblem("")}
+            style={{background:"none",border:"none",cursor:"pointer",color:th.mut,
+                    fontFamily:"'IBM Plex Mono',monospace",fontSize:14,padding:0,flexShrink:0}}>✕</button>
+        </div>
+      )}
 
       {page==="home"&&(
         <main style={{opacity: corruptionLevel > 10 ? 0.92 : 1, filter: corruptionLevel >= 8 ? `invert(${corruptionLevel * 0.02})` : 'none'}}>
           <section style={{padding:"60px 40px 48px",borderBottom:`1px solid ${th.div}`,background:th.heroBg}}>
             <div style={{maxWidth:980,margin:"0 auto",position:"relative"}}>
               <h1 className="hero-title" onMouseDown={handleHeroTitleDown} onMouseUp={handleHeroTitleUp} onMouseLeave={handleHeroTitleUp} onTouchStart={handleHeroTitleDown} onTouchEnd={handleHeroTitleUp} style={{fontFamily:"'Anton',sans-serif",fontSize:"clamp(44px,7vw,84px)",fontWeight:400,lineHeight:1,letterSpacing:.3,marginBottom:18,cursor:"pointer",userSelect:"none", opacity: corruptionLevel >= 9 ? 0.7 + Math.random() * 0.2 : 1, textShadow: corruptionLevel >= 10 ? '3px 3px 0 #f43f5e, -2px -2px 0 #00ff00' : 'none'}}>
-                <div style={{overflow:"hidden"}}><span style={{display:"block",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) both"}}>{tr.h1[0]}</span></div>
-                <div style={{overflow:"hidden"}}><span style={{display:"block",color:"var(--sv-accent)",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) .07s both"}}>{tr.h1[1]}</span></div>
+                {/* hero-line: the clipping box the reveal animation slides into.
+                    It needs overflow:hidden, but with line-height 1 there is no
+                    room under the baseline, so descenders (the g in "give") were
+                    sliced off — see global.css. */}
+                <div className="hero-line" style={{overflow:"hidden"}}><span style={{display:"block",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) both"}}>{tr.h1[0]}</span></div>
+                <div className="hero-line" style={{overflow:"hidden"}}><span style={{display:"block",color:"var(--sv-accent)",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) .07s both"}}>{tr.h1[1]}</span></div>
               </h1>
               <p style={{fontSize:13,color:th.mut,lineHeight:1.85,maxWidth:480,marginBottom:28,fontFamily:"'IBM Plex Mono',monospace",animation:"fadeUp .5s ease .28s both"}}>{sett.heroSub||tr.sub}</p>
               <div onClick={handleStatsClick} style={{display:"flex",gap:24,flexWrap:"wrap",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,borderTop:`1px solid ${th.div}`,paddingTop:20,cursor:"default",userSelect:"none"}}>
@@ -1667,11 +2021,48 @@ export default function Vault() {
               {foundSecrets.length>0&&(
                 <div style={{display:"flex",alignItems:"center",gap:5,marginTop:20,paddingTop:16,borderTop:`1px solid ${th.div}`,animation:"starsReveal .5s cubic-bezier(.22,1,.36,1) both",flexWrap:"wrap"}}>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginRight:4,letterSpacing:2,opacity:.6}}>secrets</span>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>{
+                  {Array.from({length:20},(_,i)=>i+1).map(n=>{
                     const found=foundSecrets.includes(n);
-                    return <span key={n} style={{fontSize:15,lineHeight:1,display:"inline-block",color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 6px rgba(200,168,75,.7))":"none",transition:"color .5s, filter .5s",animation:starAnim===n?"starPop .75s cubic-bezier(.22,1,.36,1) both":found?"starGlow 2.5s ease infinite":"none", textShadow: corruptionLevel >= 11 && found ? `0 0 10px #f43f5e, 0 0 20px #ff00ff` : 'none'}}>★</span>;
+                    return <span key={n} style={{fontSize:13,lineHeight:1,display:"inline-block",color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 6px rgba(200,168,75,.7))":"none",transition:"color .5s, filter .5s",animation:starAnim===n?"starPop .75s cubic-bezier(.22,1,.36,1) both":found?"starGlow 2.5s ease infinite":"none", textShadow: corruptionLevel >= 11 && found ? `0 0 10px #f43f5e, 0 0 20px #ff00ff` : 'none'}}>★</span>;
                   })}
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginLeft:4,opacity:.6}}>{foundSecrets.length}/12{foundSecrets.length===12?" ✓":""}</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginLeft:4,opacity:.6}}>{foundSecrets.length}/20{foundSecrets.length===20?" ✓":""}</span>
+                </div>
+              )}
+
+              {/* A hint for the secret you have NOT found yet — never a
+                  description of the one you just got. It appears only once you
+                  have found at least one, so nothing is spoiled for a visitor
+                  who has no idea any of this exists, and the text stays folded
+                  away behind "need a nudge?" so working it out unaided is still
+                  the default. */}
+              {foundSecrets.length>0&&nextSecret&&(
+                <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${th.div}`,
+                             maxWidth:560,animation:"fadeUp .5s ease both"}}>
+                  <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:2,
+                                  color:"#c8a84b",opacity:.85}}>NEXT ▸ {String(nextSecret.n).padStart(2,"0")}/20</span>
+                    <button onClick={()=>setHintOpen(o=>!o)}
+                      style={{background:"none",border:"none",padding:0,cursor:"pointer",
+                              fontFamily:"'IBM Plex Mono',monospace",fontSize:9,letterSpacing:1,
+                              color:th.mut,textDecoration:"underline"}}>
+                      {hintOpen?"hide hint":"need a nudge?"}
+                    </button>
+                  </div>
+                  {hintOpen&&(
+                    <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11.5,lineHeight:1.85,
+                               color:th.mut,margin:0,fontStyle:"italic"}}>
+                      {nextSecret.hint}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {foundSecrets.length===20&&(
+                <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${th.div}`,maxWidth:560}}>
+                  <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11.5,lineHeight:1.85,
+                             color:"#c8a84b",margin:0}}>
+                    All twenty found. There is nothing else hidden here — the vault has no more to give.
+                  </p>
                 </div>
               )}
               {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
@@ -1769,7 +2160,7 @@ export default function Vault() {
           </div>
 
           <div style={{display:"flex",gap:0,marginBottom:36,borderBottom:th.bdr}}>
-            {[{id:"programs",label:"Programs"},{id:"site",label:"Site"},{id:"secrets",label:"Secrets ◉"}].map(t=>(
+            {[{id:"programs",label:"Programs"},{id:"users",label:"Users"},{id:"site",label:"Site"},{id:"secrets",label:"Secrets ◉"}].map(t=>(
               <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{padding:"12px 22px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:"none",borderBottom:`3px solid ${adminTab===t.id?"var(--sv-accent)":"transparent"}`,background:"none",color:adminTab===t.id?th.blk:th.mut,cursor:"pointer",marginBottom:-2,transition:"color .2s ease, border-color .2s ease",letterSpacing:.5}}>
                 {t.label}
               </button>
@@ -1867,10 +2258,74 @@ export default function Vault() {
             </div>
           )}
 
+          {adminTab==="users"&&(
+            <div style={{animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
+              <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.shd}}>
+                <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,marginBottom:8,letterSpacing:.3,color:th.blk}}>Admin rights</h2>
+                <p style={{fontSize:11,color:th.mut,lineHeight:1.7,marginBottom:18,fontFamily:"'IBM Plex Mono',monospace"}}>
+                  Anyone marked as an admin sees this panel the next time they sign in.
+                  Addresses in the ADMIN_EMAILS environment variable are always admins and can&apos;t be switched off here.
+                </p>
+
+                <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap"}}>
+                  <input style={{...inp,flex:1,minWidth:200}} value={userQuery}
+                    onChange={e=>setUserQuery(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter")loadUsers();}}
+                    placeholder="Search by username or email" />
+                  <Btn sm th={th} onClick={loadUsers} disabled={usersBusy}>{usersBusy?"…":"Search"}</Btn>
+                </div>
+
+                {usersErr&&<p style={{color:"var(--sv-accent)",fontSize:11,marginBottom:12,fontFamily:"'IBM Plex Mono',monospace"}}>{usersErr}</p>}
+
+                {usersBusy&&users.length===0?(
+                  <p style={{fontSize:12,color:th.mut,fontFamily:"'IBM Plex Mono',monospace"}}>Loading…</p>
+                ):users.length===0?(
+                  <p style={{fontSize:12,color:th.mut,fontFamily:"'IBM Plex Mono',monospace"}}>No accounts matched.</p>
+                ):(
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {users.map(u=>(
+                      <div key={u.id} style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",
+                                              border:`1px solid ${th.div}`,background:th.inputBg,padding:"10px 12px"}}>
+                        <div style={{minWidth:0,flex:1}}>
+                          <div style={{fontSize:13,color:th.blk,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"'IBM Plex Mono',monospace"}}>
+                            {u.username||"(no username)"}
+                            {u.isAdmin&&<span style={{marginLeft:8,fontSize:10,letterSpacing:1,color:"var(--sv-accent)"}}>ADMIN</span>}
+                            {u.owner&&<span style={{marginLeft:6,fontSize:10,letterSpacing:1,color:th.mut}}>OWNER</span>}
+                          </div>
+                          <div style={{fontSize:11,color:th.mut,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"'IBM Plex Mono',monospace"}}>{u.email}</div>
+                        </div>
+                        <Btn sm th={th} v={u.isAdmin?"danger":"primary"}
+                          disabled={u.owner||userSaving===u.id}
+                          onClick={()=>setUserAdmin(u,!u.isAdmin)}>
+                          {userSaving===u.id?"…":u.isAdmin?"Remove admin":"Make admin"}
+                        </Btn>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {usersTruncated&&(
+                  <p style={{fontSize:10,color:th.mut,marginTop:12,fontFamily:"'IBM Plex Mono',monospace"}}>
+                    Showing the first 1000 accounts.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {adminTab==="site"&&(
             <div style={{display:"flex",flexDirection:"column",gap:24,animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
               <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
-                <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:12,letterSpacing:.3,color:th.blk}}>Admin email</h2>
+                <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:8,letterSpacing:.3,color:th.blk}}>Admin email</h2>
+                <p style={{fontSize:11,color:th.mut,marginBottom:14,lineHeight:1.7,fontFamily:"'IBM Plex Mono',monospace"}}>
+                  Only a notification address — where the monthly report and test mails are sent.
+                  It does <strong style={{color:th.blk}}>not</strong> give anyone admin rights and it
+                  doesn&apos;t have to be an account on the site. To let someone into this panel,
+                  use the <button onClick={()=>setAdminTab("users")}
+                    style={{background:"none",border:"none",padding:0,cursor:"pointer",
+                            color:"var(--sv-accent)",textDecoration:"underline",
+                            fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>Users</button> tab.
+                </p>
                 <div style={{marginBottom:10}}>
                   <div style={{fontSize:11,color:th.mut,marginBottom:6,fontFamily:"'IBM Plex Mono',monospace"}}>Current</div>
                   <div style={{padding:10,border:th.bdr,background:th.inputBg,color:th.blk}}>{adminEmail||"(not set)"}</div>
@@ -1883,6 +2338,35 @@ export default function Vault() {
                   <Btn sm v="primary" th={th} onClick={saveAdminEmail}>Save admin email</Btn>
                   <Btn sm v="secondary" th={th} onClick={sendTestEmail} disabled={busy}>Send test email</Btn>
                 </div>
+              </div>
+
+              <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2}}>
+                <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:12,letterSpacing:.3,color:th.blk}}>Monthly report</h2>
+                <p style={{fontSize:12,color:th.mut,marginBottom:14,fontFamily:"'IBM Plex Mono',monospace",lineHeight:1.6}}>
+                  Goes to the admin email above, automatically at 01:00 UTC on the 1st of each month
+                  (Vercel only — a local dev server has no scheduler). The scheduled one covers the
+                  month that just ended; the buttons here let you check it without waiting.
+                </p>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <Btn sm v="primary" th={th} disabled={reportBusy}
+                    onClick={()=>runMonthlyReport("send","previous")}>
+                    {reportBusy?"…":"Send last month's report now"}
+                  </Btn>
+                  <Btn sm th={th} disabled={reportBusy}
+                    onClick={()=>runMonthlyReport("send","current")}>
+                    Send this month so far
+                  </Btn>
+                  <Btn sm th={th} disabled={reportBusy}
+                    onClick={()=>runMonthlyReport("preview","previous")}>
+                    Preview numbers
+                  </Btn>
+                </div>
+                {reportMsg&&(
+                  <p style={{fontSize:11,marginTop:12,lineHeight:1.6,fontFamily:"'IBM Plex Mono',monospace",
+                             color:reportMsg.bad?"var(--sv-accent)":th.mut,whiteSpace:"pre-wrap"}}>
+                    {reportMsg.text}
+                  </p>
+                )}
               </div>
               <div style={{background:th.card,border:th.bdr,padding:24,boxShadow:th.sh2,transition:"all .2s ease"}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:18,fontWeight:400,marginBottom:12,letterSpacing:.3,color:th.blk}}>Two-Factor Authentication</h2>
@@ -1932,11 +2416,11 @@ export default function Vault() {
                 <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.85,marginBottom:20}}>Each secret can optionally reveal a hidden download when triggered.</p>
                 <div style={{display:"flex",alignItems:"center",gap:5,paddingTop:16,borderTop:`1px solid ${th.div}`,flexWrap:"wrap"}}>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginRight:4}}>found on this device:</span>
-                  {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+                  {Array.from({length:20},(_,i)=>i+1).map(n=>{
                     const found=foundSecrets.includes(n);
-                    return <span key={n} style={{fontSize:15,color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 5px rgba(200,168,75,.7))":"none",transition:"all .3s"}}>★</span>;
+                    return <span key={n} style={{fontSize:13,color:found?"#c8a84b":th.div,filter:found?"drop-shadow(0 0 5px rgba(200,168,75,.7))":"none",transition:"all .3s"}}>★</span>;
                   })}
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut}}>{foundSecrets.length}/12</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut}}>{foundSecrets.length}/20</span>
                 </div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -1991,7 +2475,8 @@ export default function Vault() {
       {detailProg&&<DetailModal prog={detailProg} liked={likes.includes(detailProg.id)} onLike={handleLike} inLibrary={library.includes(detailProg.id)} onToggleLibrary={handleToggleLibrary} lt={lt} onDownload={download} loadingDl={loadingDl} onClose={()=>setDetailProg(null)} th={th} tr={tr}/>}
 
       {modal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20,animation:"fadein .2s ease",backdropFilter:"blur(0px)"}} {...modalBackdrop}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20,animation:"fadein .2s ease",backdropFilter:"blur(0px)"}} {...modalBackdrop}>
           {(modal==="login"||modal==="setup"||modal==="changepw")&&(
             <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:th.bdr,padding:32,width:"100%",maxWidth:360,boxShadow:`8px 8px 0 ${th.blk}`,animation:"modalIn .3s cubic-bezier(.22,1,.36,1) both"}}>
               <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:22,fontWeight:400,marginBottom:modal==="setup"?10:20,letterSpacing:.3,color:th.blk}}>{modal==="login"?tr.si:modal==="setup"?tr.sat:tr.cp}</h2>
@@ -2102,6 +2587,7 @@ export default function Vault() {
             </div>
           )}
         </div>
+        </Portal>
       )}
 
       {/* ── SECRET LOCKS (one per active secret, z-index 9001, above overlays) ── */}
@@ -2118,19 +2604,24 @@ export default function Vault() {
         {active:secret10, close:()=>setSecret10(false)},
         {active:secret11, close:()=>setSecret11(false)},
         {active:secret12, close:()=>setSecret12(false)},
+        // 13-20 share one piece of state, so they share one lock — without this
+        // the new secrets had no "click anywhere to close" and you had to wait
+        // out the timer
+        {active:!!activeSecret, close:()=>setActiveSecret(null)},
       ].map(({active,close},idx)=>
         active ? <SecretLock key={idx} onClose={close}/> : null
       )}
 
       {/* SECRET 1 — Konami: CRT terminal */}
       {secret1&&(
-        <div style={{position:"fixed",inset:0,background:"#030b03",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,overflow:"hidden",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#030b03",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,overflow:"hidden",pointerEvents:"none"}}>
           <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(0deg,rgba(0,0,0,.15) 0px,rgba(0,0,0,.15) 1px,transparent 1px,transparent 3px)"}}/>
           <div style={{position:"absolute",left:0,right:0,height:80,background:"linear-gradient(transparent,rgba(0,255,65,.05),transparent)",animation:"crtScan 3.5s linear infinite"}}/>
           <div style={{position:"relative",background:"#020c02",border:"2px solid #00cc33",padding:"36px 44px",maxWidth:540,width:"100%",boxShadow:"0 0 0 1px #001a00,0 0 60px rgba(0,255,65,.2)",animation:"modalIn .3s cubic-bezier(.22,1,.36,1),terminalGlow 4s ease infinite",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#00cc33",opacity:.5,letterSpacing:3}}>↑↑↓↓←→←→</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#00cc33",opacity:.3,letterSpacing:2}}>SECRET 01/12</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#00cc33",opacity:.3,letterSpacing:2}}>SECRET 01/20</span>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#00e836",lineHeight:2.1,minHeight:200,marginBottom:16}}>
               {termLines.map((l,i)=>(
@@ -2140,63 +2631,74 @@ export default function Vault() {
             <SecretDownloadCard dl={getSd(1)} accentColor="#00cc33" textColor="#00e836" bgColor="rgba(0,255,65,.04)" borderColor="rgba(0,255,65,.15)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 2 — Logo 5×: glitch */}
       {secret2&&(
-        <div style={{position:"fixed",inset:0,background:"#050505",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .15s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#050505",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .15s ease",pointerEvents:"none"}}>
           <div style={{background:"#0a0a0a",border:"2px solid #e8e4d8",padding:"48px 44px",maxWidth:460,width:"100%",boxShadow:"8px 8px 0 var(--sv-accent)",animation:"modalIn .22s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{position:"relative",marginBottom:10,height:80}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#e8e4d8",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:3}}>HEY YOU.</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:2,animation:"glitch1 2.4s steps(1) infinite",mixBlendMode:"screen"}}>HEY YOU.</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:68,fontWeight:400,color:"#0ff",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,zIndex:1,animation:"glitch2 3.1s steps(1) infinite",mixBlendMode:"screen",opacity:.6}}>HEY YOU.</div>
             </div>
-            <div style={{fontSize:9,color:"#444",marginBottom:20,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:3}}>SECRET 02/12 — LOGO SEQUENCE</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#666",lineHeight:1.9,marginBottom:20}}>you've cracked the first layer. the vault is awake.<br/>symbols surround you in the interface. some are more present than others.<br/>the marked one at the top watches. press it. five times. do not hesitate between presses.</p>
+            <div style={{fontSize:9,color:"#444",marginBottom:20,fontFamily:"'IBM Plex Mono',monospace",letterSpacing:3}}>SECRET 02/20 — LOGO SEQUENCE</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#666",lineHeight:1.9,marginBottom:0}}>five strikes on the mark at the top, with no pause between them.<br/>something in the header gave way.</p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="var(--sv-accent)" line="rgba(255,255,255,.09)" text="#7a7a7a"/>
             <SecretDownloadCard dl={getSd(2)} accentColor="var(--sv-accent)" textColor="#e8e4d8" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.08)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 3 — Hold title: core breach */}
       {secret3&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           {[0,.5,1].map(d=><div key={d} style={{position:"absolute",borderRadius:"50%",width:240,height:240,border:"1px solid rgba(255,140,0,.4)",pointerEvents:"none",animation:`radarPing 2.4s ease-out ${d}s infinite`}}/>)}
           <div style={{position:"relative",zIndex:10,background:"#0d0a06",border:"2px solid color-mix(in srgb, var(--sv-accent) 75%, yellow)",padding:"40px 44px",maxWidth:460,width:"100%",boxShadow:"0 0 80px rgba(255,140,0,.15),8px 8px 0 var(--sv-accent)",animation:"modalIn .28s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",letterSpacing:2,animation:"scanPulse 1.6s ease infinite"}}>◉ SIGNAL DETECTED</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",opacity:.4,letterSpacing:2}}>SECRET 03/12</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",opacity:.4,letterSpacing:2}}>SECRET 03/20</span>
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:56,fontWeight:400,color:"color-mix(in srgb, var(--sv-accent) 75%, yellow)",lineHeight:1,marginBottom:20,letterSpacing:.5,animation:"vaultReveal .5s ease both"}}>FOUND<br/>ONE.</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a55",lineHeight:1.9,marginBottom:18}}>{`the vault sees those who repeat. it has revealed a layer.<br/>now look at what sits largest. what commands the page.<br/>place your hand upon it. not in clicking. in lingering. in pressure. make the vault listen through your stillness.`}</p>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#7a6a55",lineHeight:1.9,marginBottom:0}}>you held the headline down and refused to let go.<br/>the core opened for stillness, not for clicking.</p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="color-mix(in srgb, var(--sv-accent) 75%, yellow)" line="rgba(255,140,0,.18)" text="#8a7a63"/>
             <SecretDownloadCard dl={getSd(3)} accentColor="color-mix(in srgb, var(--sv-accent) 75%, yellow)" textColor="#e8d0aa" bgColor="rgba(255,140,0,.04)" borderColor="rgba(255,140,0,.18)"/>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#4a3a25",letterSpacing:1}}>SIG/NOISE: 47.3dB · {new Date().toISOString().slice(0,19).replace("T"," ")}Z</div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 4 — Type "open": vault door */}
       {secret4&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(8,6,3,.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .25s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(8,6,3,.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .25s ease",pointerEvents:"none"}}>
           <div style={{background:"#111008",border:"3px solid #7a6a44",padding:"40px 44px",maxWidth:500,width:"100%",boxShadow:"0 0 0 6px #1a1508,0 0 80px rgba(200,168,75,.12),10px 10px 0 #000",animation:"modalIn .4s cubic-bezier(.22,1,.36,1)",position:"relative",pointerEvents:"auto"}}>
             <div style={{position:"absolute",top:18,right:18,width:52,height:52,borderRadius:"50%",border:"3px solid #4a3a22",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <div style={{width:18,height:18,borderRadius:"50%",background:"radial-gradient(circle,#3a2a14,#1a1008)",border:"2px solid #4a3a22"}}/>
             </div>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#c8a84b",opacity:.6,letterSpacing:2}}>☐ VAULT UNLOCKED — SECRET 04/12</span>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#c8a84b",opacity:.6,letterSpacing:2}}>☐ VAULT UNLOCKED — SECRET 04/20</span>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:60,fontWeight:400,lineHeight:1,letterSpacing:.5,margin:"18px 0",animation:"vaultGlow 2.5s ease infinite"}}><span style={{color:"#c8a84b"}}>OPEN.</span></div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#6a5a3a",lineHeight:1.9,marginBottom:18}}>patience breaks the interface. the vault responds to those who refuse to let go.<br/>now it hungers for sound. for words. there is a command that opens doors.<br/>four letters. simple. you say it every time you enter. speak it to the void. anywhere on the page. the vault will hear.</p>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#6a5a3a",lineHeight:1.9,marginBottom:0}}>four letters, spoken into no box at all.<br/>the door was listening the whole time.</p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="#c8a84b" line="rgba(200,168,75,.2)" text="#7a6a45"/>
             <SecretDownloadCard dl={getSd(4)} accentColor="#c8a84b" textColor="#e8e0cc" bgColor="rgba(200,168,75,.04)" borderColor="rgba(200,168,75,.2)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 5 — Stats 5×: classified dossier */}
       {secret5&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           <div style={{background:"#fdf9f0",border:"1px solid #c8b888",padding:"44px 44px 36px",maxWidth:480,width:"100%",position:"relative",overflow:"hidden",boxShadow:"10px 10px 0 #111",animation:"modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{position:"absolute",top:0,left:0,right:0,height:6,background:"#b40000"}}/>
             <div style={{position:"absolute",top:36,right:28,fontFamily:"'Anton',sans-serif",fontSize:24,color:"rgba(180,0,0,.75)",border:"4px solid rgba(180,0,0,.65)",padding:"5px 12px",transform:"rotate(-12deg)",letterSpacing:3,animation:"stampDrop .45s cubic-bezier(.22,1,.36,1) .15s both"}}>CLASSIFIED</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#888",marginBottom:16,letterSpacing:2}}>VAULT INTERNAL · EYES ONLY · SECRET 05/12</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#888",marginBottom:16,letterSpacing:2}}>VAULT INTERNAL · EYES ONLY · SECRET 05/20</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:26,color:"#1a1008",letterSpacing:.3,lineHeight:1.2,marginBottom:20}}>INTERNAL<br/>STATISTICS</div>
             <div style={{height:1,background:"#d0c8a8",marginBottom:16}}/>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#333",lineHeight:2.4,marginBottom:16}}>
@@ -2204,78 +2706,87 @@ export default function Vault() {
               <div>total downloads: <strong style={{color:"#1a1008"}}>{progs.reduce((a,p)=>a+(p.dl||0),0)}</strong></div>
               <div>total likes: <strong style={{color:"#1a1008"}}>{progs.reduce((a,p)=>a+(p.likes||0),0)}</strong></div>
               <div>most downloaded: <strong style={{color:"#b40000"}}>{topProg?.name||"—"}</strong></div>
-              <div>secrets found: <strong style={{color:"#b40000"}}>{foundSecrets.length}/10</strong></div>
+              <div>secrets found: <strong style={{color:"#b40000"}}>{foundSecrets.length}/20</strong></div>
             </div>
             <div style={{height:1,background:"#d0c8a8",marginBottom:16}}/>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#444",lineHeight:1.8,marginBottom:16}}>words open the vault. but the vault keeps records.<br/>numbers live in the interface. they tell stories. they count.<br/>find one of these counters. click it. five times. rapid. urgent. the vault remembers patterns.</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#444",lineHeight:1.8,marginBottom:0}}>you tapped the tally until it flinched and gave up its ledger.<br/>the vault keeps records of everything, including this.</div>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="#b40000" line="#d0c8a8" text="#555"/>
             <SecretDownloadCard dl={getSd(5)} accentColor="#b40000" textColor="#1a1008" bgColor="rgba(180,0,0,.04)" borderColor="rgba(180,0,0,.15)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 6 — Footer Alt-trace: faultline */}
       {secret6&&(
+        <Portal>
         <div style={{position:"fixed",bottom:64,left:"50%",zIndex:9000,animation:"ghostFadeIn .5s ease both, ghostFloat 3s ease .5s infinite",pointerEvents:"none"}}>
           <div style={{background:"rgba(10,10,10,.97)",border:"1px solid #2a2a2a",padding:"20px 28px",minWidth:260,boxShadow:"0 -8px 40px rgba(0,0,0,.7)",pointerEvents:"auto"}}>
-            <div style={{fontSize:9,color:"#444",marginBottom:10,letterSpacing:2}}>SECRET 06/12 · FOOTER</div>
+            <div style={{fontSize:9,color:"#444",marginBottom:10,letterSpacing:2}}>SECRET 06/20 · FOOTER</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:24,color:"#e8e4d8",marginBottom:10,letterSpacing:.3}}>still here?</div>
-            <p style={{fontSize:11,color:"#555",lineHeight:1.85,marginBottom:getSd(6)?.enabled&&getSd(6)?.name?14:0}}>the vault counts. it remembers rapid clicks. you've found the rhythm.<br/>there is a name at the bottom of all things.<br/>one key on your keyboard holds power. the key marked ALT. combine it with presence. hover over the vault's name at the bottom while holding ALT. wait. the vault speaks to the modified.</p>
+            <p style={{fontSize:11,color:"#555",lineHeight:1.85,marginBottom:0}}>you rested on the name at the bottom with ALT held down.<br/>the faultline traced itself.</p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="#888" line="rgba(255,255,255,.09)" text="#666"/>
             <SecretDownloadCard dl={getSd(6)} accentColor="#888" textColor="#ccc" bgColor="rgba(255,255,255,.03)" borderColor="rgba(255,255,255,.07)"/>
           </div>
           <div style={{position:"absolute",bottom:-8,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:"8px solid #2a2a2a"}}/>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 7 — Card Fault: hold program title */}
       {secret7&&(
-        <div style={{position:"fixed",inset:0,background:"#05050a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .08s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#05050a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .08s ease",pointerEvents:"none"}}>
           <div style={{background:"#09090f",border:"2px solid #7c3aed",padding:"48px 44px",maxWidth:520,width:"100%",animation:"modalIn .15s cubic-bezier(.22,1,.36,1)",textAlign:"center",fontFamily:"'Courier New',monospace",pointerEvents:"auto"}}>
-            <div style={{fontSize:9,color:"#8b5cf6",marginBottom:24,letterSpacing:3}}>SECRET 07/12 — CARD FAULT</div>
+            <div style={{fontSize:9,color:"#8b5cf6",marginBottom:24,letterSpacing:3}}>SECRET 07/20 — CARD FAULT</div>
             <div style={{border:"3px dashed #777",width:80,height:80,margin:"0 auto 28px",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <div style={{fontSize:24,color:"#7c3aed",lineHeight:1,animation:"scanPulse 1.1s ease infinite"}}>!</div>
             </div>
             <div style={{fontSize:18,color:"#fff",marginBottom:8,lineHeight:1.7,fontWeight:"bold"}}>{s7CardName||"UNKNOWN PROGRAM"}</div>
-            <div style={{fontSize:13,color:"#aaa",lineHeight:2.1,marginBottom:24}}>
-              the vault has learned your modifier keys. it respects your patience.<br/>
-              programs display within cards. each card has a title. a name.<br/>
-              find any program. find its title. hold down your mouse. don't release. make the card know you're there. the vault will crack for those who apply sustained pressure to its words.
+            <div style={{fontSize:13,color:"#aaa",lineHeight:2.1,marginBottom:0,textAlign:"left"}}>
+              you leaned on this program&apos;s name until the letters lost their nerve.
             </div>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="#8b5cf6" line="rgba(124,58,237,.2)" text="#9a9aa8"/>
             <SecretDownloadCard dl={getSd(7)} accentColor="#7c3aed" textColor="#fff" bgColor="rgba(124,58,237,.06)" borderColor="rgba(124,58,237,.14)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 8 — Debug Probe: search for debug */}
       {secret8&&(
-        <div style={{position:"fixed",inset:0,background:"#0d0019",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#0d0019",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           <div style={{position:"relative",background:"#070617",border:"1px solid rgba(126,34,206,.4)",padding:"42px 40px",maxWidth:500,width:"100%",boxShadow:"0 0 0 1px rgba(126,34,206,.15),0 0 40px rgba(99,102,241,.18)",animation:"modalIn .2s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"rgba(164,140,255,.75)",letterSpacing:3,marginBottom:18}}>SECRET 08/12 — DEBUG PROBE</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"rgba(164,140,255,.75)",letterSpacing:3,marginBottom:18}}>SECRET 08/20 — DEBUG PROBE</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:42,color:"#c4b5fd",lineHeight:1,letterSpacing:.4,marginBottom:18}}>DEBUG</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#c7d2fe",lineHeight:1.85,marginBottom:24}}>
-              you've made the vault's text respond. cards break when you hold their words.<br/>
-              searching is natural. most use the search to find. but what do you search for in a vault?<br/>
-              there is a word. it means to fix broken things. to investigate. to probe. type it in the search. the vault will respond to diagnostic queries.
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#c7d2fe",lineHeight:1.85,marginBottom:0}}>
+              you asked the search box for something no program is called.<br/>
+              it answered as a diagnostic, not as a catalogue.
             </div>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="#a78bfa" line="rgba(167,139,250,.22)" text="#a9b4e8"/>
             <SecretDownloadCard dl={getSd(8)} accentColor="#a78bfa" textColor="#eef2ff" bgColor="rgba(167,139,250,.06)" borderColor="rgba(167,139,250,.18)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 9 — Schema Override: shift-click theme toggle */}
       {secret9&&(
-        <div style={{position:"fixed",inset:0,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .04s ease",background:"#020814",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .04s ease",background:"#020814",pointerEvents:"none"}}>
           <div style={{position:"relative",background:"#08101f",border:"1px solid rgba(56,189,248,.25)",padding:"44px",maxWidth:520,width:"100%",boxShadow:"0 0 0 1px rgba(56,189,248,.12),0 0 80px rgba(56,189,248,.14)",animation:"modalIn .1s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",letterSpacing:2,animation:"scanPulse .4s ease infinite"}}>SCHEMA OVERRIDE</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#7dd3fc",letterSpacing:2}}>SECRET 09/12</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#7dd3fc",letterSpacing:2}}>SECRET 09/20</span>
             </div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"#7dd3fc",lineHeight:.95,letterSpacing:.5,marginBottom:10,textShadow:"0 0 30px rgba(125,211,252,.35)"}}>OVERRIDE</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#93c5fd",lineHeight:1.6,marginBottom:18,letterSpacing:3}}>SHIFT + CLICK THE THEME BUTTON</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#cfe8ff",lineHeight:1.9,marginBottom:20}}>
-              diagnostic words exposed the vault's insides. it knows you're searching now.<br/>
-              there is a button. it controls how you perceive. light and dark. inverted states.<br/>
-              but buttons listen to whispers. hold down the shift key. the one that modifies. then click the perception button. speak to it in a tongue it doesn't expect.
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#93c5fd",lineHeight:1.6,marginBottom:18,letterSpacing:3}}>MODIFIER ACCEPTED</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#cfe8ff",lineHeight:1.9,marginBottom:0}}>
+              you pressed the perception switch in a tongue it did not expect.<br/>
+              light and dark still traded places — and something underneath them did too.
             </p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="#38bdf8" line="rgba(56,189,248,.22)" text="#9fc4e8"/>
             <div style={{display:"flex",gap:10,marginBottom:20,alignItems:"center"}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:1}}>OVERRIDE</span>
               {["I","II","III","IV","V"].map((rank,i)=>(
@@ -2287,68 +2798,81 @@ export default function Vault() {
             <SecretDownloadCard dl={getSd(9)} accentColor="#38bdf8" textColor="#eef2ff" bgColor="rgba(56,189,248,.05)" borderColor="rgba(56,189,248,.2)"/>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* SECRET 10 — Schema flip: theme toggle rush */}
       {secret10&&(
-        <div style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
           <div style={{background:th.card,border:th.bdr,padding:"44px 44px",maxWidth:480,width:"100%",boxShadow:`8px 8px 0 ${th.blk}`,animation:"themeGlitch .3s ease both, modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 10/12 — SCHEMA FLIP</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 10/20 — SCHEMA FLIP</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>SCHEMA<br/>FRACTURE</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>SCHEMA<br/>FRACTURE</div>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_SCHEMA_OVERFLOW · 10 flips / 3s</div>
-              <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
-              the button spoke to you in a modified tongue. the schema inverted. the vault doubts itself now.<br/>
-              that same button still sits in the header. waiting.<br/>
-              ask it to change again. and again. rapid. ten times in succession. so fast it cannot keep track. the vault will fracture when it can't remember which state it inhabits.
+              <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:0}}>
+              ten sunrises inside three seconds.<br/>
+              the schema lost track of which state it was supposed to be in.
             </p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="var(--sv-accent)" line={th.div} text={th.mut}/>
             <SecretDownloadCard dl={getSd(10)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
         </div>
+        </Portal>
       )}
 
       {secret11&&(
-        <div style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
           <div style={{background:th.card,border:th.bdr,padding:"44px 44px",maxWidth:480,width:"100%",boxShadow:`8px 8px 0 ${th.blk}`,animation:"themeGlitch .3s ease both, modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 11/12 — DATA CASCADE</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 11/20 — DATA CASCADE</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>CASCADE<br/>TRIGGERED</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>CASCADE<br/>TRIGGERED</div>
             </div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_RIGHT_CLICK_DETECTED · 2s HOLD</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
-              the right side of the mouse breaks barriers. cards cascade when touched wrongly.<br/>
-              some cards wear badges. golden marks. stars. the vault's chosen ones.<br/>
-              find one. press it. seven times. rapid. relentless. the vault will sing when its favorites are counted in rapid succession.
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_RIGHT_CLICK_DETECTED</div>
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:0}}>
+              you asked a card a question from the wrong side of the mouse.<br/>
+              it answered by cascading.
             </p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="var(--sv-accent)" line={th.div} text={th.mut}/>
             <SecretDownloadCard dl={getSd(11)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
         </div>
+        </Portal>
       )}
 
       {secret12&&(
-        <div style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
           <div style={{background:th.card,border:th.bdr,padding:"44px 44px",maxWidth:480,width:"100%",boxShadow:`8px 8px 0 ${th.blk}`,animation:"themeGlitch .3s ease both, modalIn .25s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 12/12 — VAULT RESONANCE</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,marginBottom:20,letterSpacing:3}}>SECRET 12/20 — VAULT RESONANCE</div>
             <div style={{position:"relative",marginBottom:16}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:th.blk,lineHeight:1,letterSpacing:.5}}>RESONANCE<br/>UNLOCKED</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:52,fontWeight:400,color:"var(--sv-accent)",lineHeight:1,letterSpacing:.5,position:"absolute",top:0,left:0,animation:"glitch1 1.8s steps(1) infinite",mixBlendMode:"multiply",opacity:.7}}>RESONANCE<br/>UNLOCKED</div>
             </div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,letterSpacing:2,marginBottom:16}}>ERR_FEATURED_OVERLOAD · 7 CLICKS</div>
-            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:20}}>
-              the theme button broke under rapid fire. the vault has lost its mind.<br/>
-              cards display programs. everyone clicks them normally. left click. basic interaction.<br/>
-              but there is another way to touch things. the right side of your mouse. press it. hold it. on a card. make the card feel pressure from an unexpected direction. the vault remembers those who violate its expectations.
+            <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.9,marginBottom:0}}>
+              you pressed the star no card had earned until the vault hummed back.
             </p>
+            <NextUp next={nextSecret} foundCount={foundSecrets.length} color="var(--sv-accent)" line={th.div} text={th.mut}/>
             <SecretDownloadCard dl={getSd(12)} accentColor={th.org} textColor={th.blk} bgColor={th.bg} borderColor={th.div}/>
           </div>
         </div>
+        </Portal>
+      )}
+
+      {/* secrets 13-20, all from one component */}
+      {activeSecret&&(
+        <SecretScene n={activeSecret} scene={SCENES[activeSecret]} dl={getSd(activeSecret)}
+          next={nextSecret} foundCount={foundSecrets.length} />
       )}
 
       {partyConfirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9004,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9004,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
           <div style={{position:"relative",background:"#1a0f2e",border:"2px solid #ec4899",padding:"40px 36px",maxWidth:480,width:"100%",boxShadow:"0 0 0 4px rgba(236,72,153,.1),0 0 60px rgba(236,72,153,.2)",animation:"modalIn .3s cubic-bezier(.22,1,.36,1)",pointerEvents:"auto",borderRadius:12}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#f472b6",letterSpacing:2,marginBottom:16,textTransform:"uppercase"}}>⚠️ Epilepsy Warning</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:32,fontWeight:400,color:"#ec4899",lineHeight:1.1,marginBottom:14,letterSpacing:.3}}>Party Mode</div>
@@ -2371,6 +2895,7 @@ export default function Vault() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {partySecret&&(
@@ -2393,7 +2918,8 @@ export default function Vault() {
 
       {/* ALL 12 FOUND */}
       {allFoundModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:20,animation:"fadeIn .3s ease",pointerEvents:"none"}}>
+        <Portal>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:20,animation:"fadeIn .3s ease",pointerEvents:"none"}}>
           <div style={{background:"#0e0b04",border:"2px solid #c8a84b",padding:"52px 48px",maxWidth:520,width:"100%",textAlign:"center",position:"relative",overflow:"hidden",boxShadow:"0 0 0 6px #1a1408,0 0 120px rgba(200,168,75,.25),14px 14px 0 #000",animation:"allFoundIn .5s cubic-bezier(.22,1,.36,1) both",pointerEvents:"auto"}}>
             <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,transparent,#c8a84b,#fff8dc,#c8a84b,transparent)",backgroundSize:"200% 100%",animation:"goldShimmer 2s linear infinite"}}/>
             <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:"linear-gradient(90deg,transparent,#c8a84b,#fff8dc,#c8a84b,transparent)",backgroundSize:"200% 100%",animation:"goldShimmer 2s linear infinite reverse"}}/>
@@ -2423,6 +2949,7 @@ export default function Vault() {
             </button>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

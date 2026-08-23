@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/vault_client";
+import { checkAdmin, hasOwnerEmails } from "@/lib/api_auth";
 
 const SUPABASE_ENABLED = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -47,18 +48,14 @@ export async function POST(req) {
     if (body.action === 'login') {
       const auth = await authUser(req);
       if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-      const { data: p, error } = await auth.svc.from('profiles').select('is_admin').eq('id', auth.user.id).single();
-      if (error) throw error;
-      if (p && p.is_admin) return NextResponse.json({ ok: true });
+      if (await checkAdmin(auth.svc, auth.user)) return NextResponse.json({ ok: true });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (body.action === 'set_email') {
       const auth = await authUser(req);
       if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-      const { data: p, error } = await auth.svc.from('profiles').select('is_admin').eq('id', auth.user.id).single();
-      if (error) throw error;
-      if (!p || !p.is_admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (!(await checkAdmin(auth.svc, auth.user))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       const email = (body.email || '').trim().toLowerCase();
       if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
       // store as settings.admin_email for continuity
@@ -78,9 +75,27 @@ export async function GET(req) {
   try {
     if (!SUPABASE_ENABLED) return NextResponse.json({ exists: false, authed: false, adminEmail: null });
     const svc = getServiceClient();
-    const { data: admins, error } = await svc.from('profiles').select('id').eq('is_admin', true).limit(1);
-    if (error) throw error;
-    const exists = (admins && admins.length > 0);
+
+    // "Does any admin exist yet?" — this only decides whether the one-time
+    // "set up admin" prompt is needed, so it must NOT be fatal.
+    //
+    // It used to `throw error`, which took the whole endpoint down with a 500
+    // BEFORE the caller's own rights were ever looked at. If profiles.is_admin
+    // is missing — SETUP_SUPABASE.sql not run, or run before that column
+    // existed — nobody could be recognised as an admin, and ADMIN_EMAILS could
+    // not rescue them either, because the route never got that far.
+    let problem = null;
+    let problemKind = null;      // 'error' = something is broken, 'not_admin' = normal
+    const { data: admins, error } = await svc
+      .from('profiles').select('id').eq('is_admin', true).limit(1);
+    if (error) {
+      problem = `profiles.is_admin is not readable: ${error.message}`;
+      problemKind = 'error';
+      console.error('admin GET: could not count admins:', error);
+    }
+    // ADMIN_EMAILS counts as an admin existing, so the prompt stays away on a
+    // site that is already configured that way.
+    const exists = (admins && admins.length > 0) || hasOwnerEmails();
 
     // If caller provided a bearer token, check if they are admin
     const header = req.headers.get('authorization') || '';
@@ -88,17 +103,34 @@ export async function GET(req) {
     let authed = false;
     if (token) {
       const { data, error: e } = await svc.auth.getUser(token);
-      if (!e && data?.user) {
-        const { data: p } = await svc.from('profiles').select('is_admin').eq('id', data.user.id).single();
-        authed = !!(p && p.is_admin);
+      if (e || !data?.user) {
+        if (!problem) {
+          problem = `the access token was rejected: ${e?.message || 'no user'}`;
+          problemKind = 'error';
+        }
+      } else {
+        authed = await checkAdmin(svc, data.user);
+        if (!authed && !problem) {
+          problem = `${data.user.email} is not an admin — profiles.is_admin is false `
+                  + `and the address is not in ADMIN_EMAILS`;
+          problemKind = 'not_admin';
+        }
       }
     }
 
     // admin email (optional) — read from settings if present
-    const { data: s } = await svc.from('settings').select('value').eq('key', 'admin_email').single();
-    const adminEmail = s && s.value ? maskEmail(s.value) : null;
+    // maybeSingle: with no row saved yet, single() answers with an error that was
+    // being thrown away here, which looked identical to "nothing is stored"
+    const { data: s, error: sErr } = await svc
+      .from('settings').select('value').eq('key', 'admin_email').maybeSingle();
+    if (sErr) console.error('admin GET: could not read admin_email:', sErr);
+    // An admin may see the address they just typed in; anyone else gets it
+    // masked, because this endpoint also answers callers with no token at all.
+    const adminEmail = s && s.value ? (authed ? s.value : maskEmail(s.value)) : null;
 
-    return NextResponse.json({ exists, authed, adminEmail });
+    // `problem` is only ever a diagnosis of why `authed` came back false — it
+    // is what turns "the panel just isn't there" into something you can read.
+    return NextResponse.json({ exists, authed, adminEmail, problem, problemKind });
   } catch (err) {
     console.error('admin GET error:', err);
     return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });

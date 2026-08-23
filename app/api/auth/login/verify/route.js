@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { getServiceClient } from "@/lib/vault_client";
 import { rateLimit, clientKey, tooMany } from "@/lib/api_auth";
+import { hashLoginCode } from "@/lib/login_code";
 
 // POST /api/auth/login/verify   body { ticket, code }   -> { session }
 //
@@ -10,10 +11,6 @@ import { rateLimit, clientKey, tooMany } from "@/lib/api_auth";
 // code works exactly once.
 
 const MAX_ATTEMPTS = 5;
-
-function sha256(v) {
-  return crypto.createHash("sha256").update(String(v)).digest("hex");
-}
 
 export async function POST(req) {
   if (!rateLimit("login-verify:" + clientKey(req), 15, 60_000)) return tooMany();
@@ -43,8 +40,10 @@ export async function POST(req) {
       return NextResponse.json({ error: "Too many attempts — sign in again." }, { status: 429 });
     }
 
-    // constant-time compare so timing can't leak the digits
-    const given = Buffer.from(sha256(String(code).trim()));
+    // constant-time compare so timing can't leak the code.
+    // hashLoginCode does the tidying (case, spaces, dashes) on both sides, so a
+    // code typed as "k7p-2m9" still matches the "K7P2M9" that was sent.
+    const given = Buffer.from(hashLoginCode(code));
     const expected = Buffer.from(row.code_hash);
     const ok = given.length === expected.length && crypto.timingSafeEqual(given, expected);
 

@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useBackdropClose, useScrollLock, Portal, scrollPanel } from "@/lib/modal_ux";
-import { loadAppearance, saveAppearance, applyAppearance, ACCENTS } from "@/lib/appearance";
+import { loadAppearance, saveAppearance, applyAppearance, setAppearanceScope, ACCENTS } from "@/lib/appearance";
 import { uploadAvatar, clearAvatar, initialsFor } from "@/lib/avatar";
 import { supabase } from "@/lib/vault_client";
 
@@ -170,6 +170,8 @@ export async function setLibrary(userId, programId, inLib) {
 }
 export function libT(lang) { const t = T(lang); return { myapps: t.myapps, save: t.save, saved: t.saved, hint: t.libhint }; }
 const _authBus = (typeof window !== "undefined") ? new EventTarget() : null;
+// a token in a link is single-use, and React runs effects twice in development
+let linkConsumed = false;
 export function openAuthModal() { if (_authBus) _authBus.dispatchEvent(new Event("open")); }
 export function likeHint(lang) { return T(lang).like; }
 
@@ -197,6 +199,11 @@ export function useAuth() {
   // saved appearance has to be in place on first paint, not only once the
   // account dialog happens to be opened
   useEffect(() => { applyAppearance(loadAppearance()); }, []);
+
+  // Appearance follows the account. Signing out puts the site defaults back on
+  // screen straight away instead of leaving the last user's accent colour,
+  // rounded buttons and typeface behind; signing in restores that account's own.
+  useEffect(() => { setAppearanceScope(user?.id || null); }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -242,14 +249,53 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
   const [open, setOpen] = useState(false);
   const [acct, setAcct] = useState(false);
 
-  // Arriving from a password-reset mail must land on the "choose a new
-  // password" screen instead of silently dropping you on the homepage.
+  // Links that arrive from an email land here with their tokens in the URL.
+  //
+  // supabase-js used to pick those up by itself (detectSessionInUrl), but it
+  // also erased the fragment before anything could read WHY the visitor had
+  // arrived — which is exactly why a password-reset link just dropped you on
+  // the homepage. That option is off now and the link is read here instead:
+  // recovery goes to the page built for it, everything else (confirmation,
+  // magic link) signs you in as before.
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || linkConsumed) return;
     const h = window.location.hash || "";
     const q = window.location.search || "";
-    if (h.includes("type=recovery") || q.includes("type=recovery")) setOpen(true);
+    if (!h && !q) return;
+
+    const hash = new URLSearchParams(h.replace(/^#/, ""));
+    const query = new URLSearchParams(q);
+    const pick = (k) => hash.get(k) || query.get(k) || "";
+    const type = pick("type");
+
+    if (type === "recovery") {
+      linkConsumed = true;
+      window.location.replace(`/reset-password${q}${h}`);
+      return;
+    }
+
+    const access = pick("access_token");
+    const refresh = pick("refresh_token");
+    const tokenHash = pick("token_hash");
+    if (!access && !tokenHash) return;
+
+    linkConsumed = true;
+    const clean = () => window.history.replaceState({}, "", window.location.pathname);
+    const done = access && refresh
+      ? supabase.auth.setSession({ access_token: access, refresh_token: refresh })
+      : supabase.auth.verifyOtp({ token_hash: tokenHash, type: type || "signup" });
+    done.catch(() => {}).finally(clean);
   }, []);
+
+  async function signOut() {
+    setAcct(false);
+    // "local" logs this browser out. The default ("global") revokes every
+    // refresh token the account has, which also kills your other devices — and,
+    // because the call was never awaited, could still be in flight when you
+    // signed back in and cut the brand-new session down with it.
+    try { await supabase.auth.signOut({ scope: "local" }); }
+    catch { await supabase.auth.signOut().catch(() => {}); }
+  }
 
   useEffect(() => {
     if (!_authBus) return;
@@ -287,12 +333,12 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
             {displayName(user, profile)}
           </span>
         </button>
-        <button onClick={() => supabase.auth.signOut()}
+        <button onClick={signOut}
           style={{ ...btnBase, background: th.card, color: th.blk }} {...press}>
           {t.signout}
         </button>
         {acct && <AccountModal lang={lang} th={th} user={user} profile={profile}
-                   onClose={() => setAcct(false)} onSaved={refreshProfile}
+                   onClose={() => setAcct(false)} onSaved={refreshProfile} onSignOut={signOut}
                    partyUnlocked={partyUnlocked} partyMode={partyMode} onTogglePartyMode={onTogglePartyMode} />}
       </div>
     );
@@ -339,11 +385,21 @@ function AuthModal({ lang, th, onClose }) {
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // `msg` is a note shown ABOVE the form — the form stays usable. `done`
+  // replaces the form, for the states where there is genuinely nothing left to
+  // fill in. They used to be the same thing, which is why "we sent a code to
+  // your email" hid the very box the code had to be typed into.
   const [msg, setMsg] = useState("");
+  const [done, setDone] = useState("");
+
+  // The sign-up poll below outlives the dialog if nobody stops it, and it hits
+  // the auth server every four seconds for five minutes.
+  const pollRef = useRef(null);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   async function submit() {
     if (busy) return;
-    setErr(""); setMsg(""); setBusy(true);
+    setErr(""); setMsg(""); setDone(""); setBusy(true);
     try {
       if (mode === "newpw") {
         if (pw.length < 8) throw new Error("Password must be at least 8 characters.");
@@ -356,16 +412,17 @@ function AuthModal({ lang, th, onClose }) {
         if (typeof window !== "undefined") {
           window.history.replaceState({}, "", window.location.pathname);
         }
-        setMsg("Password updated — you're signed in.");
+        setDone("Password updated — you're signed in.");
         setTimeout(() => { onClose && onClose(); }, 1500);
       } else if (mode === "reset") {
         const resolvedEmail = await resolveEmail(email);
         const { error } = await supabase.auth.resetPasswordForEmail(resolvedEmail, {
-          redirectTo: `${window.location.origin}`,
+          // its own page, so the link opens the reset form and nothing else
+          redirectTo: `${window.location.origin}/reset-password`,
         });
         if (error) throw error;
-        setMsg(t.resetSent);
-        setTimeout(() => { setMode("in"); setEmail(""); setMsg(""); }, 3000);
+        setDone(t.resetSent);
+        setTimeout(() => { setMode("in"); setEmail(""); setDone(""); }, 3000);
       } else if (mode === "up") {
         const actualEmail = email.trim();
         const actualUsername = username.trim() || actualEmail.split("@")[0];
@@ -378,19 +435,24 @@ function AuthModal({ lang, th, onClose }) {
         if (error) throw error;
         if (data.user && !data.session) {
           const sentTo = data?.user?.email || actualEmail;
-          setMsg(t.check);
+          setDone(t.check);
 
           // The confirmation link is usually opened on a phone, which leaves this
           // browser sitting on an unconfirmed account. Quietly retry the sign-in
           // until it goes through, so tapping the link on the phone also lands
           // you logged in here. Gives up after five minutes.
           const started = Date.now();
-          const poll = setInterval(async () => {
-            if (Date.now() - started > 5 * 60_000) { clearInterval(poll); return; }
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = setInterval(async () => {
+            if (Date.now() - started > 5 * 60_000) {
+              clearInterval(pollRef.current); pollRef.current = null; return;
+            }
             const { data: ok } = await supabase.auth.signInWithPassword({
               email: actualEmail, password: pw,
             }).catch(() => ({ data: null }));
-            if (ok?.session) { clearInterval(poll); onClose(); }
+            if (ok?.session) {
+              clearInterval(pollRef.current); pollRef.current = null; onClose();
+            }
           }, 4000);
           try {
             const res = await fetch('/api/auth/resend-confirmation', {
@@ -402,7 +464,8 @@ function AuthModal({ lang, th, onClose }) {
             // Never leave someone waiting for a mail that was never sent: if the
             // send failed, say so instead of showing "check your inbox".
             if (!res.ok || info.ok === false) {
-              setMsg("");
+              setDone("");
+              if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
               if (info.info === 'email_exists') {
                 setErr("That email is already registered — try signing in instead.");
               } else if (info.info === 'resend_missing' || info.info === 'resend_from_missing') {
@@ -411,10 +474,11 @@ function AuthModal({ lang, th, onClose }) {
                 setErr("Your account was created, but the confirmation email could not be sent: " + (info.error || "unknown error"));
               }
             } else if (info.info === 'recovery_sent') {
-              setMsg("That email already has an account — we sent a password reset link instead.");
+              setDone("That email already has an account — we sent a password reset link instead.");
             }
           } catch (e) {
-            setMsg("");
+            setDone("");
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             setErr("Your account was created, but the confirmation email could not be sent. Please try again shortly.");
           }
         } else onClose();                                   // confirmation off → logged in
@@ -512,10 +576,14 @@ function AuthModal({ lang, th, onClose }) {
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
         </div>
 
-        {msg ? (
-          <p style={{ fontSize: 13, lineHeight: 1.5, color: th.blk }}>{msg}</p>
+        {done ? (
+          <p style={{ fontSize: 13, lineHeight: 1.5, color: th.blk }}>{done}</p>
         ) : (
           <>
+            {msg && (
+              <p style={{ fontSize: 12, lineHeight: 1.5, color: th.blk, opacity: .85,
+                          margin: "0 0 10px" }}>{msg}</p>
+            )}
             {mode === "up" && (
               <input value={username} onChange={(e) => setUsername(e.target.value)}
                 name="username" placeholder={t.user} autoComplete="username" style={input} maxLength={24} />
@@ -524,11 +592,20 @@ function AuthModal({ lang, th, onClose }) {
               <>
                 <p style={{ fontSize: 11, opacity: .75, margin: "0 0 10px" }}>
                   {mode === "emailcode"
-                    ? "Enter the 6-digit code we emailed you. It expires in 10 minutes."
+                    ? "Enter the 6-character code we emailed you. It expires in 10 minutes."
                     : "Enter the 6-digit code from your authenticator app."}
                 </p>
-                <input value={code2fa} onChange={(e) => setCode2fa(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  name="otp" placeholder="000000" inputMode="numeric" autoComplete="one-time-code"
+                {/* the emailed code is letters AND digits; the authenticator app
+                    is always six digits, so each gets its own keyboard and filter */}
+                <input value={code2fa}
+                  onChange={(e) => setCode2fa(mode === "emailcode"
+                    ? e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)
+                    : e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  name="otp"
+                  placeholder={mode === "emailcode" ? "XXXXXX" : "000000"}
+                  inputMode={mode === "emailcode" ? "text" : "numeric"}
+                  autoCapitalize="characters" spellCheck={false} autoCorrect="off"
+                  autoComplete="one-time-code"
                   maxLength={6} autoFocus style={{ ...input, letterSpacing: 4, textAlign: "center" }}
                   onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
               </>
@@ -575,25 +652,22 @@ function AuthModal({ lang, th, onClose }) {
                 <>
                   <div>
                     <button style={linkBtn}
-                      onClick={() => { setErr(""); setMode("up"); }}>
+                      onClick={() => { setErr(""); setMsg(""); setMode("up"); }}>
                       {t.toUp}
                     </button>
                   </div>
                   <div style={{ marginTop: 8 }}>
                     <button style={linkBtn}
-                      onClick={() => { setErr(""); setEmail(""); setMode("reset"); }}>
+                      onClick={() => { setErr(""); setMsg(""); setEmail(""); setMode("reset"); }}>
                       {t.forgot}
                     </button>
                   </div>
                 </>
-              ) : mode === "up" ? (
-                <button style={linkBtn}
-                  onClick={() => { setErr(""); setMode("in"); }}>
-                  {t.toIn}
-                </button>
               ) : (
                 <button style={linkBtn}
-                  onClick={() => { setErr(""); setMode("in"); }}>
+                  onClick={() => {
+                    setErr(""); setMsg(""); setCode2fa(""); setTicket(""); setMode("in");
+                  }}>
                   {t.toIn}
                 </button>
               )}
@@ -699,7 +773,7 @@ export function Avatar({ url, name, email, size = 32, th }) {
   );
 }
 
-function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked, partyMode, onTogglePartyMode }) {
+function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, partyUnlocked, partyMode, onTogglePartyMode }) {
   const backdrop = useBackdropClose(onClose);
   useScrollLock();
   const t = T(lang);
@@ -925,19 +999,37 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
     textDecoration: "underline", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, padding: 0,
   };
   const label = { fontSize: 11, color: th.blk, opacity: 0.7, margin: "0 0 4px" };
-  // group related controls so a long settings list reads as sections rather
-  // than one undifferentiated column
+
+  // ---- one set of tokens for the whole dialog -------------------------------
+  // Every block used to invent its own padding, label size and button height,
+  // which is what made this read as a jumble rather than a settings panel.
   const section = {
-    border: `1px solid ${th.blk}22`, padding: "14px 14px 10px", marginBottom: 14,
+    border: `1px solid ${th.blk}22`, padding: 16, marginBottom: 14,
     background: `${th.blk}08`,
   };
-  // the four dropdowns read better as a grid than as a tall stack
-  const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 };
-  const field = { marginBottom: 0 };
   const sectionTitle = {
-    fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
-    opacity: 0.75, margin: "0 0 10px",
+    fontSize: 10, fontWeight: 700, letterSpacing: 1.4, textTransform: "uppercase",
+    opacity: 0.65, margin: "0 0 12px",
   };
+  const fieldLabel = { fontSize: 11, opacity: 0.8, margin: "0 0 5px" };
+  const hint = { fontSize: 10, opacity: .6, lineHeight: 1.55, margin: "6px 0 0" };
+  // the four dropdowns read better as a grid than as a tall stack
+  const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
+  const selectStyle = { ...input, marginBottom: 0, background: th.inputBg, cursor: "pointer" };
+  const checkRow = {
+    display: "flex", alignItems: "center", gap: 9, fontSize: 12,
+    cursor: "pointer", padding: "5px 0",
+  };
+  const checkBox = {
+    width: 14, height: 14, cursor: "pointer", accentColor: th.org, flexShrink: 0,
+  };
+  const divider = { height: 1, background: th.blk, opacity: 0.13, margin: "18px 0" };
+  // every full-width button in here is now the same height
+  const wideBtn = (bg, fg) => ({
+    width: "100%", padding: 11, background: bg, color: fg, border: th.bdr,
+    cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
+    fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, fontWeight: 600,
+  });
 
   return (
     <Portal>
@@ -945,12 +1037,17 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
                display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(360px,92vw)", background: th.card, border: th.bdr,
+        // 400 rather than 360: the two-column grid was cramped enough that the
+        // dropdown labels wrapped, which is half of why this felt untidy
+        style={{ width: "min(400px,92vw)", background: th.card, border: th.bdr,
                  boxShadow: th.shd, padding: 22, color: th.blk,
                  fontFamily: "'IBM Plex Mono',monospace", ...scrollPanel }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-                      marginBottom: 14, position: "sticky", top: -22, zIndex: 2,
-                      background: th.card, paddingTop: 4, paddingBottom: 8 }}>
+                      marginBottom: 16, position: "sticky", top: -22, zIndex: 2,
+                      background: th.card, paddingTop: 4, paddingBottom: 10,
+                      // the sticky heading used to slide over the content behind
+                      // it with nothing marking the edge
+                      borderBottom: `1px solid ${th.blk}18` }}>
           <strong style={{ fontSize: 16 }}>{at.account}</strong>
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
         </div>
@@ -993,7 +1090,9 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
             onChange={pickAvatar} style={{ display: "none" }} />
         </div>
-        <p style={{ fontSize: 10, opacity: .6, margin: "-8px 0 14px" }}>
+        {/* the negative top margin here used to pull this line up into the row
+            above it, so it collided with the Change picture / Remove links */}
+        <p style={{ ...hint, margin: "0 0 16px" }}>
           Square-cropped and scaled to 256px in your browser before uploading.
         </p>
 
@@ -1002,17 +1101,15 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
           placeholder={t.user} autoComplete="username" maxLength={24} style={input}
           onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
 
-        {err && <p style={{ color: "var(--sv-accent)", fontSize: 11, margin: "2px 0 8px" }}>{err}</p>}
-        {msg && <p style={{ color: th.org, fontSize: 11, margin: "2px 0 8px" }}>{msg}</p>}
+        {err && <p style={{ color: "var(--sv-accent)", fontSize: 11, margin: "6px 0 0" }}>{err}</p>}
+        {msg && <p style={{ color: th.org, fontSize: 11, margin: "6px 0 0" }}>{msg}</p>}
 
         <button onClick={save} disabled={busy}
-          style={{ width: "100%", padding: 10, marginTop: 4, background: th.org, color: "#fff",
-                   border: th.bdr, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
-                   fontFamily: "'IBM Plex Mono',monospace", fontSize: 13, fontWeight: 600 }}>
+          style={{ ...wideBtn(th.org, "#fff"), marginTop: 10, fontSize: 13 }}>
           {busy ? "…" : at.save}
         </button>
 
-        <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
+        <div style={divider} />
 
         {/* 2FA Section */}
         <div style={section}>
@@ -1060,50 +1157,45 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
                 </div>
               )}
               <input value={code2fa} onChange={(e) => setCode2fa(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000" maxLength={6} style={input} />
+                placeholder="000000" inputMode="numeric" maxLength={6}
+                style={{ ...input, letterSpacing: 4, textAlign: "center", marginBottom: 10 }} />
               <button onClick={verify2fa} disabled={verify2faBusy || code2fa.length !== 6}
-                style={{ width: "100%", padding: 8, background: th.org, color: "#fff",
-                         border: th.bdr, cursor: "pointer", opacity: verify2faBusy ? 0.6 : 1,
-                         fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
+                style={{ ...wideBtn(th.org, "#fff"),
+                         cursor: code2fa.length === 6 ? "pointer" : "default",
+                         opacity: verify2faBusy || code2fa.length !== 6 ? 0.6 : 1 }}>
                 {verify2faBusy ? "…" : at.verify}
               </button>
-              <button onClick={() => setSetup2fa(false)} style={linkBtn}>Cancel</button>
+              {/* used to sit flush against the button above it */}
+              <div style={{ textAlign: "center", marginTop: 10 }}>
+                <button onClick={() => setSetup2fa(false)} style={linkBtn}>Cancel</button>
+              </div>
             </div>
           ) : emailTwofa ? (
             <>
-              <p style={{ fontSize: 11, opacity: .75, margin: "0 0 8px" }}>
+              <p style={{ fontSize: 11, opacity: .75, margin: "0 0 10px", lineHeight: 1.55 }}>
                 Codes are emailed to you when you sign in.
               </p>
               <button onClick={() => toggleEmail2fa(false)} disabled={busy}
-                style={{ width: "100%", padding: 10, background: "var(--sv-accent)", color: "#fff",
-                         border: th.bdr, cursor: "pointer", opacity: busy ? 0.6 : 1,
-                         fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
+                style={wideBtn("var(--sv-accent)", "#fff")}>
                 {busy ? "…" : "Turn off email codes"}
               </button>
             </>
           ) : twofa ? (
             <button onClick={disable2fa} disabled={busy}
-              style={{ width: "100%", padding: 10, background: "var(--sv-accent)", color: "#fff",
-                       border: th.bdr, cursor: "pointer", opacity: busy ? 0.6 : 1,
-                       fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
-              {at.disable2fa}
+              style={wideBtn("var(--sv-accent)", "#fff")}>
+              {busy ? "…" : at.disable2fa}
             </button>
           ) : (
             <>
               <button onClick={initiate2fa} disabled={busy}
-                style={{ width: "100%", padding: 10, background: th.org, color: "#fff",
-                         border: th.bdr, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
-                         fontFamily: "'IBM Plex Mono',monospace", fontSize: 12 }}>
+                style={wideBtn(th.org, "#fff")}>
                 {busy ? "…" : at.enable2fa + " (app)"}
               </button>
               <button onClick={() => toggleEmail2fa(true)} disabled={busy}
-                style={{ width: "100%", padding: 10, marginTop: 8, background: th.card,
-                         color: th.blk, border: th.bdr, cursor: busy ? "default" : "pointer",
-                         opacity: busy ? 0.6 : 1, fontFamily: "'IBM Plex Mono',monospace",
-                         fontSize: 12 }}>
+                style={{ ...wideBtn(th.card, th.blk), marginTop: 8, fontWeight: 400 }}>
                 {busy ? "…" : "Email me a code instead"}
               </button>
-              <p style={{ fontSize: 10, opacity: .6, margin: "8px 0 0", lineHeight: 1.5 }}>
+              <p style={hint}>
                 The app option is checked by the login server itself. Email codes are
                 checked by this website — more convenient, slightly weaker.
               </p>
@@ -1111,137 +1203,137 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, partyUnlocked
           )}
         </div>
 
-        {user && (
+        {/* Nothing here until it has actually been found. The section used to
+            render a "find party mode to unlock this" placeholder, which told
+            everyone there was something to find and roughly where — the whole
+            point is that you stumble on it. No trace now: no heading, no box. */}
+        {user && partyUnlocked && (
           <div style={section}>
             <p style={sectionTitle}>Party mode</p>
-            {partyUnlocked ? (
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <button onClick={() => onTogglePartyMode(!partyMode)}
-                  style={{ padding: 10, background: partyMode ? "#ec4899" : th.card, color: partyMode ? "#fff" : th.blk,
-                           border: th.bdr, cursor: "pointer", fontFamily: "'IBM Plex Mono',monospace", fontSize: 12,
-                           fontWeight: 600, minWidth: 172 }}>
-                  {partyMode ? "Disable party mode" : "Enable party mode"}
-                </button>
-                <span style={{ fontSize: 11, color: th.mut, opacity: 0.85 }}>
-                  {partyMode ? "Party mode is active." : "Party mode unlocked — enable it anytime."}
-                </span>
-              </div>
-            ) : (
-              <p style={{ fontSize: 11, color: th.mut, margin: 0 }}>
-                Find party mode once while logged in to unlock this setting.
-              </p>
-            )}
+            {/* full width like every other action in this dialog, instead of a
+                half-width button with the caption squeezed in beside it */}
+            <button onClick={() => onTogglePartyMode(!partyMode)}
+              style={{ ...wideBtn(partyMode ? "#ec4899" : th.card, partyMode ? "#fff" : th.blk),
+                       cursor: "pointer", opacity: 1 }}>
+              {partyMode ? "Disable party mode" : "Enable party mode"}
+            </button>
+            <p style={hint}>
+              {partyMode ? "Party mode is active." : "Party mode unlocked — enable it anytime."}
+            </p>
           </div>
         )}
-
-        <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
 
         {/* Appearance — every option here is actually applied (lib/appearance.js) */}
         <div style={section}>
           <p style={sectionTitle}>Appearance</p>
 
+          {/* The grid holds the four dropdowns and NOTHING else. The accent
+              swatches, the checkboxes and their explanations used to be grid
+              children too, so they were laid out as columns alongside the
+              selects — which is why nothing here ever lined up. */}
           <div style={grid2}>
-          <div style={field}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Corners</p>
-            <select value={appearance.corners}
-              onChange={(e) => updateAppearance({ corners: e.target.value })}
-              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
-              <option value="edgy">Edgy (square)</option>
-              <option value="smooth">Smooth (rounded)</option>
-            </select>
+            <div>
+              <p style={fieldLabel}>Corners</p>
+              <select value={appearance.corners}
+                onChange={(e) => updateAppearance({ corners: e.target.value })}
+                style={selectStyle}>
+                <option value="edgy">Edgy (square)</option>
+                <option value="smooth">Smooth (rounded)</option>
+              </select>
+            </div>
+
+            <div>
+              <p style={fieldLabel}>Text size</p>
+              <select value={appearance.textSize}
+                onChange={(e) => updateAppearance({ textSize: e.target.value })}
+                style={selectStyle}>
+                <option value="small">Small</option>
+                <option value="normal">Normal</option>
+                <option value="large">Large</option>
+              </select>
+            </div>
+
+            <div>
+              <p style={fieldLabel}>Density</p>
+              <select value={appearance.density}
+                onChange={(e) => updateAppearance({ density: e.target.value })}
+                style={selectStyle}>
+                <option value="normal">Normal</option>
+                <option value="compact">Compact</option>
+              </select>
+            </div>
+
+            <div>
+              <p style={fieldLabel}>Typeface</p>
+              <select value={appearance.font}
+                onChange={(e) => updateAppearance({ font: e.target.value })}
+                style={selectStyle}>
+                <option value="mono">Monospace (default)</option>
+                <option value="sans">Sans-serif (easier to read)</option>
+              </select>
+            </div>
           </div>
 
-          <div style={{ margin: "12px 0" }}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Accent colour</p>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 16 }}>
+            <p style={fieldLabel}>Accent colour</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {ACCENTS.map((a) => (
-                <button key={a.id} title={a.name}
+                <button key={a.id} title={a.name} aria-label={a.name}
                   onClick={() => updateAppearance({ accent: a.id })}
-                  style={{ width: 28, height: 28, background: a.id, cursor: "pointer",
-                           border: appearance.accent === a.id
-                             ? `3px solid ${th.blk}` : "1px solid rgba(0,0,0,.3)" }} />
+                  // the selection is drawn as an OUTLINE rather than a thicker
+                  // border, so picking a colour no longer resizes the swatch
+                  // and shoves the whole row sideways
+                  style={{ width: 30, height: 30, background: a.id, cursor: "pointer",
+                           border: `1px solid ${th.blk}33`, padding: 0,
+                           outline: appearance.accent === a.id ? `2px solid ${th.blk}` : "none",
+                           outlineOffset: 2 }} />
               ))}
             </div>
           </div>
 
-          <div style={field}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Text size</p>
-            <select value={appearance.textSize}
-              onChange={(e) => updateAppearance({ textSize: e.target.value })}
-              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
-              <option value="small">Small</option>
-              <option value="normal">Normal</option>
-              <option value="large">Large</option>
-            </select>
+          <div style={{ marginTop: 18 }}>
+            <label style={checkRow}>
+              <input type="checkbox" checked={appearance.motion === "reduced"}
+                onChange={(e) => updateAppearance({ motion: e.target.checked ? "reduced" : "full" })}
+                style={checkBox} />
+              Reduce animations
+            </label>
+            <p style={hint}>
+              Calms the glitch effects and party mode. Your device&apos;s own
+              &quot;reduce motion&quot; setting is respected automatically.
+            </p>
+
+            <label style={{ ...checkRow, marginTop: 12 }}>
+              <input type="checkbox" checked={appearance.contrast === "high"}
+                onChange={(e) => updateAppearance({ contrast: e.target.checked ? "high" : "normal" })}
+                style={checkBox} />
+              Higher contrast
+            </label>
+
+            <label style={{ ...checkRow, marginTop: 12 }}>
+              <input type="checkbox" checked={appearance.glitch === "off"}
+                onChange={(e) => updateAppearance({ glitch: e.target.checked ? "off" : "on" })}
+                style={checkBox} />
+              Turn off glitch effects
+            </label>
+            <p style={hint}>
+              Stops the screen shaking and colour-shifting as corruption rises.
+            </p>
           </div>
-
-          <div style={field}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Density</p>
-            <select value={appearance.density}
-              onChange={(e) => updateAppearance({ density: e.target.value })}
-              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
-              <option value="normal">Normal</option>
-              <option value="compact">Compact</option>
-            </select>
-          </div>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
-                          cursor: "pointer", marginBottom: 4 }}>
-            <input type="checkbox" checked={appearance.motion === "reduced"}
-              onChange={(e) => updateAppearance({ motion: e.target.checked ? "reduced" : "full" })}
-              style={{ width: 14, height: 14, cursor: "pointer", accentColor: th.org }} />
-            Reduce animations
-          </label>
-          <p style={{ fontSize: 10, opacity: .6, margin: "0 0 4px", lineHeight: 1.5 }}>
-            Calms the glitch effects and party mode. Your device's own
-            "reduce motion" setting is respected automatically.
-          </p>
-
-          <div style={field}>
-            <p style={{ fontSize: 11, marginBottom: 4 }}>Typeface</p>
-            <select value={appearance.font}
-              onChange={(e) => updateAppearance({ font: e.target.value })}
-              style={{ ...input, marginBottom: 0, background: th.inputBg }}>
-              <option value="mono">Monospace (default)</option>
-              <option value="sans">Sans-serif (easier to read)</option>
-            </select>
-          </div>
-          </div>
-
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
-                          cursor: "pointer", marginBottom: 8 }}>
-            <input type="checkbox" checked={appearance.contrast === "high"}
-              onChange={(e) => updateAppearance({ contrast: e.target.checked ? "high" : "normal" })}
-              style={{ width: 14, height: 14, cursor: "pointer", accentColor: th.org }} />
-            Higher contrast
-          </label>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12,
-                          cursor: "pointer", marginBottom: 4 }}>
-            <input type="checkbox" checked={appearance.glitch === "off"}
-              onChange={(e) => updateAppearance({ glitch: e.target.checked ? "off" : "on" })}
-              style={{ width: 14, height: 14, cursor: "pointer", accentColor: th.org }} />
-            Turn off glitch effects
-          </label>
-          <p style={{ fontSize: 10, opacity: .6, margin: "0 0 10px", lineHeight: 1.5 }}>
-            Stops the screen shaking and colour-shifting as corruption rises.
-          </p>
 
           <button onClick={() => updateAppearance({ corners: "edgy", accent: "#e03d0c",
                                                    textSize: "normal", motion: "full",
                                                    density: "normal", font: "mono",
                                                    contrast: "normal", glitch: "on" })}
-            style={{ ...linkBtn, marginTop: 4 }}>
+            style={{ ...linkBtn, marginTop: 18 }}>
             Reset appearance
           </button>
         </div>
 
-        <div style={{ height: 1, background: th.blk, opacity: 0.15, margin: "16px 0" }} />
-        <button onClick={() => supabase.auth.signOut()}
-          style={{ width: "100%", padding: 10, background: th.card, color: th.blk,
-                   border: th.bdr, cursor: "pointer",
-                   fontFamily: "'IBM Plex Mono',monospace", fontSize: 13 }}>
+        <div style={divider} />
+        <button onClick={() => (onSignOut ? onSignOut() : supabase.auth.signOut())}
+          style={{ ...wideBtn(th.card, th.blk), cursor: "pointer", opacity: 1,
+                   fontSize: 13, fontWeight: 400 }}>
           {t.signout}
         </button>
       </div>

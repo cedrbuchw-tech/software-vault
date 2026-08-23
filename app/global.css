@@ -5,56 +5,117 @@ body { margin: 0; }
 html[class*="corrupt-lvl-"] {
 	transition: filter .35s ease, transform .35s ease;
 }
-html.corrupt-lvl-1 #sv-root { filter: hue-rotate(8deg) saturate(1.12); }
-html.corrupt-lvl-2 #sv-root { filter: hue-rotate(-8deg) saturate(1.15) contrast(1.05); }
-html.corrupt-lvl-3 #sv-root { filter: hue-rotate(15deg) contrast(1.08); transform: translateY(-1px); }
-html.corrupt-lvl-4 #sv-root { filter: saturate(1.1) hue-rotate(22deg) contrast(1.12); transform: translateY(-2px) skewX(-1.5deg); }
-html.corrupt-lvl-5 #sv-root { filter: contrast(1.2) saturate(1.3) hue-rotate(30deg); transform: translateY(-1px); }
-html.corrupt-lvl-6 #sv-root { filter: contrast(1.25) saturate(1.4) hue-rotate(-25deg) sepia(.08); transform: skewX(-0.5deg); }
-html.corrupt-lvl-7 #sv-root { filter: contrast(1.3) saturate(1.5) hue-rotate(50deg) blur(.1px); transform: translateX(1.5px) skewY(-1deg); }
-html.corrupt-lvl-8 #sv-root { filter: contrast(1.35) saturate(1.5) hue-rotate(60deg) grayscale(.15) blur(.2px); transform: translate(2px,-1.5px) skewX(-1deg); }
-html.corrupt-lvl-9 #sv-root { filter: contrast(1.45) saturate(1.5) hue-rotate(85deg) grayscale(.3) blur(.35px); transform: translateX(2px) skewX(1deg); }
-html.corrupt-lvl-10 #sv-root {
-	filter: saturate(.4) contrast(1.85) hue-rotate(125deg) blur(.25px) brightness(.95);
-	animation: final-break 1.8s ease-in-out infinite, jitter 0.24s steps(2) infinite;
+/* ── Corruption ladder ─────────────────────────────────────────────────────
+   Twelve stages. Each stage sets nothing but tokens; the rules underneath turn
+   those tokens into pixels, so retuning the whole progression means editing one
+   column of numbers rather than twelve filter strings.
+
+   What changed and why: every stage used to lean on hue-rotate, up to 220deg at
+   the top. That does not read as a glitch — it just repaints the site in
+   arbitrary colours, and the brand orange ended up green. Corruption is a
+   BROKEN SIGNAL, so it is built from the things a broken signal actually does:
+   the colour channels drift apart, scanlines and noise crawl over the picture,
+   and every so often the whole frame tears sideways for two frames. Hue is left
+   almost alone, so the site still looks like itself while it falls apart. */
+
+html[class*="corrupt-lvl-"] {
+	--cr-split: 0px;      /* how far the red/cyan channels separate */
+	--cr-scan: 0;         /* scanline + noise strength */
+	--cr-contrast: 1;
+	--cr-blur: 0px;
+	--cr-hue: 0deg;       /* a few degrees of drift, never a repaint */
+	--cr-burst: 0s;       /* 0s = no tearing at this stage */
 }
-html.corrupt-lvl-11 #sv-root {
-	filter: saturate(.2) contrast(2) hue-rotate(180deg) blur(.35px) brightness(.85) invert(.05);
-	animation: final-break 1.4s ease-in-out infinite, jitter 0.18s steps(2) infinite;
-	transform: scaleX(0.9985);
+
+html.corrupt-lvl-1  { --cr-split:.4px;  --cr-scan:.06; --cr-contrast:1.02; --cr-hue:2deg; }
+html.corrupt-lvl-2  { --cr-split:.7px;  --cr-scan:.10; --cr-contrast:1.04; --cr-hue:-3deg; }
+html.corrupt-lvl-3  { --cr-split:1px;   --cr-scan:.14; --cr-contrast:1.06; --cr-hue:4deg; }
+html.corrupt-lvl-4  { --cr-split:1.3px; --cr-scan:.18; --cr-contrast:1.08; --cr-hue:-5deg; }
+html.corrupt-lvl-5  { --cr-split:1.6px; --cr-scan:.22; --cr-contrast:1.10; --cr-hue:6deg; }
+html.corrupt-lvl-6  { --cr-split:1.9px; --cr-scan:.26; --cr-contrast:1.13; --cr-hue:-7deg; --cr-burst:7s; }
+html.corrupt-lvl-7  { --cr-split:2.2px; --cr-scan:.30; --cr-contrast:1.16; --cr-hue:8deg;  --cr-burst:6s; }
+html.corrupt-lvl-8  { --cr-split:2.5px; --cr-scan:.34; --cr-contrast:1.19; --cr-hue:-9deg; --cr-burst:5s;   --cr-blur:.08px; }
+html.corrupt-lvl-9  { --cr-split:2.9px; --cr-scan:.39; --cr-contrast:1.22; --cr-hue:10deg; --cr-burst:4.2s; --cr-blur:.12px; }
+html.corrupt-lvl-10 { --cr-split:3.3px; --cr-scan:.44; --cr-contrast:1.26; --cr-hue:-12deg;--cr-burst:3.4s; --cr-blur:.18px; }
+html.corrupt-lvl-11 { --cr-split:3.8px; --cr-scan:.50; --cr-contrast:1.30; --cr-hue:14deg; --cr-burst:2.8s; --cr-blur:.24px; }
+html.corrupt-lvl-12 { --cr-split:4.4px; --cr-scan:.58; --cr-contrast:1.35; --cr-hue:-16deg;--cr-burst:2.2s; --cr-blur:.3px; }
+
+/* The picture itself: contrast and a whisper of hue. Nothing violent — the
+   violence lives in the channel split and the tearing. */
+html[class*="corrupt-lvl-"] #sv-root {
+	filter: contrast(var(--cr-contrast)) hue-rotate(var(--cr-hue)) blur(var(--cr-blur));
+	transition: filter .45s ease;
+	will-change: filter, transform;
 }
+
+/* The tear. Ninety-odd percent of the cycle is perfectly still, then the frame
+   rips sideways for a few frames and recovers — which is what sells it. A
+   permanent skew just looks like a broken stylesheet. */
+@keyframes sv-tear {
+	0%, 90%, 100% { transform: none; }
+	91%  { transform: translate3d(-3px, 0, 0) skewX(.7deg); }
+	92%  { transform: translate3d(4px, 0, 0) skewX(-.9deg); }
+	93%  { transform: translate3d(-2px, 1px, 0); }
+	94%  { transform: translate3d(1px, 0, 0) skewX(.3deg); }
+	95%  { transform: none; }
+}
+html.corrupt-lvl-6 #sv-root, html.corrupt-lvl-7 #sv-root, html.corrupt-lvl-8 #sv-root,
+html.corrupt-lvl-9 #sv-root, html.corrupt-lvl-10 #sv-root, html.corrupt-lvl-11 #sv-root,
 html.corrupt-lvl-12 #sv-root {
-	filter: saturate(0) contrast(2.2) hue-rotate(220deg) blur(.5px) brightness(.75) invert(.1);
-	animation: final-break 1s ease-in-out infinite, jitter 0.12s steps(3) infinite;
-	transform: scaleX(0.998) scaleY(0.998);
+	animation: sv-tear var(--cr-burst) steps(1) infinite;
 }
-html.corrupt-lvl-9 body::before,
-html.corrupt-lvl-10 body::before,
-html.corrupt-lvl-11 body::before,
-html.corrupt-lvl-12 body::before {
+
+/* Chromatic aberration, on text only. Doing it to the whole page needs a
+   filter chain heavy enough to drop frames on a laptop; headings carry the
+   effect on their own and cost nothing. */
+html[class*="corrupt-lvl-"] .hero-title,
+html[class*="corrupt-lvl-"] h1,
+html[class*="corrupt-lvl-"] h2,
+html[class*="corrupt-lvl-"] .program-card h2 {
+	text-shadow:
+		var(--cr-split) 0 0 rgba(255, 0, 72, .60),
+		calc(var(--cr-split) * -1) 0 0 rgba(0, 229, 255, .55);
+	transition: text-shadow .45s ease;
+}
+
+/* Scanlines and noise, present from the first secret and climbing. Previously
+   this appeared out of nowhere at level 9 and sat at a fixed opacity. */
+html[class*="corrupt-lvl-"] body::before {
 	content: "";
 	position: fixed;
 	inset: 0;
 	pointer-events: none;
 	background-image:
-		linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px),
-		radial-gradient(circle at 20% 20%, rgba(255,255,255,.04), transparent 18%),
-		radial-gradient(circle at 80% 70%, rgba(0,255,128,.03), transparent 18%);
-	background-size: 100% 8px, 8px 100%, 200px 200px, 220px 220px;
+		repeating-linear-gradient(to bottom, rgba(255,255,255,.055) 0 1px, transparent 1px 3px),
+		linear-gradient(90deg, rgba(255,0,72,.035), transparent 40%, rgba(0,229,255,.035)),
+		radial-gradient(circle at 20% 20%, rgba(255,255,255,.05), transparent 18%),
+		radial-gradient(circle at 80% 70%, rgba(0,255,128,.035), transparent 18%);
+	background-size: 100% 3px, 100% 100%, 220px 220px, 240px 240px;
 	mix-blend-mode: screen;
-	opacity: .18;
+	opacity: var(--cr-scan);
 	z-index: 9998;
-	animation: glitch-stripes .24s steps(2) infinite, noise-shift 4.2s linear infinite;
+	animation: noise-shift 5.5s linear infinite;
+	transition: opacity .5s ease;
 	will-change: transform, opacity;
 }
-html.corrupt-lvl-8 body::before {
-	content: "";
-	position: fixed;
-	inset: 0;
-	pointer-events: none;
-	opacity: 0;
+
+/* Turning glitch effects off in Account settings must silence all of it. */
+html[data-glitch="off"] {
+	--cr-split: 0px !important;
+	--cr-scan: 0 !important;
+	--cr-contrast: 1 !important;
+	--cr-blur: 0px !important;
+	--cr-hue: 0deg !important;
 }
+html[data-glitch="off"] body::before { display: none !important; }
+html[data-glitch="off"] .hero-title,
+html[data-glitch="off"] h1,
+html[data-glitch="off"] h2,
+html[data-glitch="off"] .program-card h2 { text-shadow: none !important; }
+
+/* Same for "Reduce animations": keep the colour drift, drop the movement. */
+html[data-motion="reduced"] #sv-root { animation: none !important; }
+html[data-motion="reduced"] body::before { animation: none !important; }
 
 @keyframes glitch-stripes {
 	0%, 100% { opacity: .35; transform: translate(0,0); }
@@ -551,4 +612,44 @@ html[data-font="sans"] body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* ── Hero descenders ───────────────────────────────────────────────────────
+   Each hero line sits in an overflow:hidden box so the reveal animation can
+   slide up into it, and the <h1> uses line-height: 1 — which leaves exactly
+   zero room below the baseline. Anton's descenders are shallow enough to get
+   away with it; a generic sans-serif's are not, so with the Sans typeface
+   setting the "g" in "and give away." was being sliced off at the ground.
+
+   Pad the clipping box downwards and pull the same amount back as negative
+   margin: the descender gets its room, and nothing below the title moves. */
+.hero-title .hero-line {
+	padding-bottom: 0.16em;
+	margin-bottom: -0.16em;
+}
+
+/* ── Full-screen overlays ──────────────────────────────────────────────────
+   Every dialog and secret panel is rendered into <body> through <Portal>, not
+   into #sv-root. That is not a style choice — #sv-root carries a CSS filter at
+   every corruption level, an animated transform from level 6, and
+   overflow:hidden. Any one of those makes it the containing block for its
+   position:fixed descendants, so an overlay inside it was being sized and
+   centred against the whole DOCUMENT instead of the viewport (hence having to
+   scroll to find it) and then clipped by the root's overflow (hence sometimes
+   not being able to reach it at all). Out at <body> level, fixed means fixed.
+
+   The rules below are the second half: a panel taller than the window has to be
+   able to scroll on its own. Capping the panel rather than scrolling the
+   overlay avoids the flexbox centring trap, where an over-tall centred child
+   has its top pushed out of reach where no scrollbar can get to it. */
+.sv-overlay {
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+.sv-overlay > * {
+	max-height: calc(100vh - 40px);
+	max-height: calc(100dvh - 40px);   /* dodges mobile browser chrome */
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
 }

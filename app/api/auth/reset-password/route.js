@@ -15,8 +15,13 @@ export async function POST(req) {
       return Response.json({ error: "Missing email" }, { status: 400 });
     }
 
+    // always land on the page that can take a new password
+    const base = String(redirectTo || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
+      .replace(/\/+$/, "");
+    const target = base.endsWith("/reset-password") ? base : `${base}/reset-password`;
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectTo || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}`,
+      redirectTo: target,
     });
 
     if (error) {
