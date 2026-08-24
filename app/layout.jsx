@@ -1,5 +1,15 @@
 import "./global.css";
 
+// Without this, a phone renders the page into a ~980px virtual viewport and
+// then scales the whole thing down — every font, button and gap shrinks
+// together, which is exactly the "cramped" look. Next needs it as its own
+// export; putting it in `metadata` does nothing.
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata = {
   title: "SoftwareVault",
   description: "A compact vault of curated tools for apps, games, utilities, media, and developers.",

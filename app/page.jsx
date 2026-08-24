@@ -1118,7 +1118,17 @@ export default function Vault() {
 
         if(loadedProgs) setProgs(loadedProgs);
 
-        const savedSett=await idbGet(K.sett);
+        // Settings come from the SERVER first, so every visitor sees the same
+        // banner. IndexedDB is only a fallback for when the server can't be
+        // reached — it is per-browser, which is exactly why a published banner
+        // used to be visible to nobody but the admin who wrote it.
+        let savedSett=null;
+        try{
+          const sr=await fetch('/api/settings',{cache:'no-store'});
+          if(sr.ok){ const sj=await sr.json(); if(sj.settings) savedSett=sj.settings; }
+        }catch(e){ console.warn("[vault] could not load site settings:",e); }
+        if(!savedSett) savedSett=await idbGet(K.sett);
+
         if(savedSett){
           setSett(savedSett);
           setAnnDraft({text:savedSett.ann?.text||"",type:savedSett.ann?.type||"info"});
@@ -1453,7 +1463,29 @@ export default function Vault() {
       ping("Could not save that program.","err");
     }
   };
-  const saveSett =async s=>{ try{await idbSet(K.sett,s);setSett(s);}catch(e){console.error("Failed to save settings:",e);} };
+  const saveSett =async s=>{
+    // local copy first so the panel reacts instantly, then publish it so
+    // everyone else actually gets it
+    try{ await idbSet(K.sett,s); setSett(s); }
+    catch(e){ console.error("Failed to save settings locally:",e); }
+    try{
+      const r=await fetch('/api/settings',{
+        method:'POST',
+        headers:await authHeaders({'Content-Type':'application/json'}),
+        body:JSON.stringify({settings:s}),
+      });
+      if(!r.ok){
+        const j=await r.json().catch(()=>({}));
+        ping(j.error||`Saved on this device only — the server refused (${r.status}).`,"err");
+        return false;
+      }
+      return true;
+    }catch(e){
+      console.error("Failed to publish settings:",e);
+      ping("Saved on this device only — could not reach the server.","err");
+      return false;
+    }
+  };
   const saveSecretDownload=async(idx)=>{
     const s={...sett,secretDownloads:[...sdDraft]};
     await saveSett(s); ping(`Secret #${idx+1} saved.`);
@@ -2209,7 +2241,7 @@ export default function Vault() {
             <Btn sm th={th} onClick={()=>{setModal("changepw");setPwErr("");setPw("");setPw2("");}}>{tr.cpb}</Btn>
           </div>
 
-          <div style={{display:"flex",gap:0,marginBottom:36,borderBottom:th.bdr}}>
+          <div className="sv-admin-tabs" style={{display:"flex",gap:0,marginBottom:36,borderBottom:th.bdr}}>
             {[{id:"programs",label:"Programs"},{id:"users",label:"Users"},{id:"site",label:"Site"},{id:"secrets",label:"Secrets ◉"}].map(t=>(
               <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{padding:"12px 22px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,border:"none",borderBottom:`3px solid ${adminTab===t.id?"var(--sv-accent)":"transparent"}`,background:"none",color:adminTab===t.id?th.blk:th.mut,cursor:"pointer",marginBottom:-2,transition:"color .2s ease, border-color .2s ease",letterSpacing:.5}}>
                 {t.label}
