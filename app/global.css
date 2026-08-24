@@ -712,6 +712,31 @@ img, video, canvas, svg { max-width: 100%; }
 
 	/* dialogs: use the width that exists */
 	.sv-overlay { padding: 12px !important; }
+
+	/* ── Filter buttons ────────────────────────────────────────────────────
+	   Two things made this row look broken on a phone. The chips carry a 4px
+	   offset drop-shadow, which at this scale reads as a second, misaligned
+	   copy of the button rather than depth. And each chip has its own
+	   margin-bottom: 8 ON TOP of the row's gap: 8, so the vertical gaps were
+	   double the horizontal ones and the rows drifted apart. */
+	.sv-filters { padding: 20px 16px 0 !important; }
+	.sv-filters button {
+		margin-bottom: 0 !important;
+		filter: none !important;
+		padding: 8px 12px !important;
+	}
+	:root[data-theme="light"] .sv-filters button { box-shadow: 2px 2px 0 #111 !important; }
+	:root[data-theme="dark"]  .sv-filters button { box-shadow: 2px 2px 0 #444 !important; }
+
+	/* two 180px-minimum buttons side by side do not fit; stacking them full
+	   width looks deliberate instead of wrapped-by-accident */
+	.sv-corruption { gap: 8px !important; }
+	.sv-corruption > button {
+		flex: 1 1 100% !important;
+		min-width: 0 !important;
+		padding-top: 9px !important;
+		padding-bottom: 9px !important;
+	}
 }
 
 /* Very narrow — small phones in portrait. */

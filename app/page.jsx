@@ -94,27 +94,27 @@ const SECRET_LABELS = [
   // ── 13–20 ────────────────────────────────────────────────────────────────
   // Half of these are nods to things older than this website. A hint may point
   // at the reference, never at the keystrokes.
-  {trigger:"Magic Word",
-   hint:"Colossal Cave Adventure, 1976 — the game that invented the text adventure. It hid one magic word, five letters, and its famous reply to it was: nothing happens.",
-   howto:"Type X-Y-Z-Z-Y outside text fields. (Colossal Cave Adventure)"},
+  {trigger:"Empty Shelf",
+   hint:"The category buttons each tell you how many programs they hold. One of them proudly says zero. Open it anyway — nobody ever does.",
+   howto:"Click a category chip whose count reads (0)."},
   {trigger:"Degreelessness Mode",
    hint:"Doom, 1993. Five letters typed mid-game and nothing in hell could touch you. Every kid with a copy knew them by heart.",
    howto:"Type I-D-D-Q-D outside text fields. (Doom)"},
-  {trigger:"Motherlode",
-   hint:"The Sims, 2000. One word typed into the cheat box and your family was suddenly, obscenely rich. Seven letters, borrowed from the most famous last word in cinema.",
-   howto:"Type R-O-S-E-B-U-D outside text fields. (The Sims)"},
-  {trigger:"Blood Code",
-   hint:"Mortal Kombat on the Mega Drive shipped censored. Seven letters at the title screen put the arcade version back, and made the game infamous enough to invent an age rating.",
-   howto:"Type A-B-A-C-A-B-B outside text fields. (Mortal Kombat, Sega Mega Drive)"},
+  {trigger:"No Results",
+   hint:"The search box is very good at finding things. Ask it for something that plainly is not in here, and then sit with the empty answer for a moment instead of retyping.",
+   howto:"Search 3+ characters that match no program, and stay on the empty result ~1s."},
+  {trigger:"Polyglot",
+   hint:"The little dropdown up in the corner speaks eight languages. Visit every one of them in a single sitting, and the vault notices someone reading it every way it can be read.",
+   howto:"Switch the language selector through all 8 languages in one session."},
   {trigger:"Root Access",
    hint:"The mark at the top answers plain clicks by going home. Hold the key that literally means *control* while you click it, and it answers as something with privileges.",
    howto:"Ctrl+click (or Cmd+click) the header logo."},
   {trigger:"No Exit",
    hint:"Your keyboard has a key for leaving. Press it three times in a row and find out whether this place honours it.",
    howto:"Press Escape three times within two seconds."},
-  {trigger:"Compression",
-   hint:"The vault assumes it has room to breathe. Take that room away — drag the window narrow until it is barely a column — and watch what it does when cornered.",
-   howto:"Resize the window below 520px wide, having been at least 800px this session."},
+  {trigger:"The Floor",
+   hint:"Everything worth reading is near the top, so go the other way. All the way down, past the last program, until the page physically refuses to move any further.",
+   howto:"Scroll to the very bottom of the home page (needs a page taller than the window)."},
   {trigger:"Stillness",
    hint:"Everything else here rewards doing something. One thing rewards the exact opposite: put your hands in your lap and leave the page completely untouched for the better part of a minute.",
    howto:"No mouse, key or scroll input for 45 seconds while the tab is visible."},
@@ -128,20 +128,20 @@ const SECRET_LABELS = [
  * instead, so a new one costs a single entry.
  */
 const SCENES = {
-  13:{kicker:"MAGIC WORD",        title:"NOTHING\nHAPPENS.", accent:"#7fdc9a", ink:"#dff7e6", panel:"#04120a", back:"#020905",
-      body:"you typed the oldest incantation in software.\nit did exactly what it has always done."},
+  13:{kicker:"EMPTY SHELF",       title:"NOTHING\nHERE.",    accent:"#7fdc9a", ink:"#dff7e6", panel:"#04120a", back:"#020905",
+      body:"you opened a drawer the vault has never once put anything in.\nnobody else checks. the vault appreciates the thoroughness."},
   14:{kicker:"DEGREELESSNESS",    title:"GOD\nMODE",         accent:"#ff6b3d", ink:"#ffd9c9", panel:"#160806", back:"#0a0403",
       body:"five keys, and the vault stops being able to hurt you.\n1993 sends its regards."},
-  15:{kicker:"MOTHERLODE",        title:"ROSEBUD",           accent:"#4ade80", ink:"#d8ffe7", panel:"#04140c", back:"#020a06",
-      body:"one word, and a generation of suburban families became millionaires.\nthe vault's bank account remains, regrettably, fictional."},
-  16:{kicker:"BLOOD CODE",        title:"ABACABB",           accent:"#dc2626", ink:"#ffd7d7", panel:"#170707", back:"#0b0303",
-      body:"seven letters at the title screen turned a censored port back into the arcade.\nthe vault has nothing to bleed, but it remembers."},
+  15:{kicker:"NO RESULTS",        title:"NOT\nFOUND",        accent:"#8ab4f8", ink:"#dbe7ff", panel:"#060c18", back:"#02060d",
+      body:"you asked for something that is not in here, and then waited.\nthe vault checked twice, found nothing, and admired the question."},
+  16:{kicker:"POLYGLOT",          title:"EVERY\nTONGUE",     accent:"#f5a623", ink:"#ffe9c4", panel:"#161003", back:"#0a0802",
+      body:"you read the vault in all eight languages it knows.\nit would like to say thank you, and is spoiled for choice."},
   17:{kicker:"ROOT ACCESS",       title:"ELEVATED",          accent:"#22c55e", ink:"#d7ffe6", panel:"#04140b", back:"#020a06",
       body:"you held control and clicked the mark.\nit answered as something with privileges."},
   18:{kicker:"NO EXIT",           title:"DENIED",            accent:"#f43f5e", ink:"#ffd9e1", panel:"#170610", back:"#0b0308",
       body:"you asked to leave three times.\nthe vault logged each request and kept the door shut."},
-  19:{kicker:"COMPRESSION",       title:"SQUEEZED",          accent:"#38bdf8", ink:"#d5efff", panel:"#04121a", back:"#02080d",
-      body:"you took the room away.\neverything still fits — but only just."},
+  19:{kicker:"THE FLOOR",         title:"ROCK\nBOTTOM",      accent:"#38bdf8", ink:"#d5efff", panel:"#04121a", back:"#02080d",
+      body:"you went all the way down, past everything worth reading.\nthere is nothing below this. that was rather the point."},
   20:{kicker:"STILLNESS",         title:"PATIENCE",          accent:"#c8a84b", ink:"#f3e7c4", panel:"#12100a", back:"#080704",
       body:"you did nothing at all, for long enough that the vault noticed.\nit had begun to think nobody ever would."},
 };
@@ -1027,7 +1027,7 @@ export default function Vault() {
   const footerClickRef = useRef(0);
   const footerTimerRef = useRef(null);
   const escTimes       = useRef([]);
-  const everBroad      = useRef(false);
+  const seenLangs      = useRef(new Set());
   const heroHoldRef      = useRef(false);
   const altHoverTimerRef = useRef(null);
   const holdTimerRef     = useRef(null);
@@ -1196,9 +1196,24 @@ export default function Vault() {
     if(nf.length===20) setTimeout(()=>setAllFoundModal(true),2600);
   };
 
-  // show a data-driven secret (13-20) and record it
+  // A secret shows its panel EXACTLY ONCE. Repeating the gesture afterwards is
+  // silent: the star is already yours, and a panel you have read four times is
+  // just an interruption. foundRef (not foundSecrets) because these run inside
+  // event handlers that captured an older render.
+  const alreadyFound=(n)=>foundRef.current.includes(n);
+
+  /** Legacy secrets 1-12, each with its own bespoke overlay + setter. */
+  const revealSecret=(n,show,ms=12000)=>{
+    if(alreadyFound(n)) return false;
+    show(true);
+    markSecretFound(n);
+    setTimeout(()=>show(false),ms);
+    return true;
+  };
+
+  /** Secrets 13-20, which share one data-driven overlay. */
   const fireSecret=(n,ms=13000)=>{
-    if(activeSecret===n) return;
+    if(alreadyFound(n)||activeSecret===n) return;
     setActiveSecret(n);
     markSecretFound(n);
     setTimeout(()=>setActiveSecret(a=>a===n?null:a),ms);
@@ -1246,7 +1261,7 @@ export default function Vault() {
       if(SEQ[konamiRef.current]===key){
         konamiRef.current++;
         if(konamiRef.current===SEQ.length){
-          konamiRef.current=0; setSecret1(true); markSecretFound(1); setTimeout(()=>setSecret1(false),14000);
+          konamiRef.current=0; revealSecret(1,setSecret1,14000);
         }
       } else { konamiRef.current=key===SEQ[0]?1:0; }
       if(e.key==="Escape"){
@@ -1256,11 +1271,14 @@ export default function Vault() {
       if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){
         typedRef.current=(typedRef.current+e.key.toLowerCase()).slice(-12);
         if(typedRef.current.includes("open")){
-          typedRef.current=""; setSecret4(true); markSecretFound(4); setTimeout(()=>setSecret4(false),12000);
+          typedRef.current=""; revealSecret(4,setSecret4,12000);
         }
         // the reference words. checked longest-first so a buffer holding two of
         // them can't award the shorter one by accident.
-        for(const [word,n] of [["rosebud",15],["abacabb",16],["xyzzy",13],["iddqd",14]]){
+        // Only one typed code survives. The rest became things you find by
+        // using the site, because trivia you either know or you don't is not
+        // a hunt.
+        for(const [word,n] of [["iddqd",14]]){
           if(typedRef.current.includes(word)){ typedRef.current=""; fireSecret(n); break; }
         }
       }
@@ -1270,20 +1288,6 @@ export default function Vault() {
     // fireSecret is rebuilt every render; depending on it would rebind this
     // listener on every render for no gain. activeSecret is the only value it
     // actually reads, so that is the only dependency that matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[activeSecret]);
-
-  // #19 — only counts as a squeeze if there WAS room to take away, so a phone
-  // (permanently narrow) never trips it just by existing.
-  useEffect(()=>{
-    if(typeof window==="undefined") return;
-    const onResize=()=>{
-      if(window.innerWidth>=800) everBroad.current=true;
-      if(everBroad.current&&window.innerWidth<520) fireSecret(19);
-    };
-    onResize();
-    window.addEventListener("resize",onResize);
-    return ()=>window.removeEventListener("resize",onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSecret]);
 
@@ -1309,22 +1313,38 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSecret]);
 
+  // #19 — go all the way down. Replaces the old "make the window narrow"
+  // trigger, which no phone could ever perform.
+  useEffect(()=>{
+    if(typeof window==="undefined") return;
+    const onScroll=()=>{
+      const doc=document.documentElement;
+      // a page shorter than the window is ALWAYS at its bottom; that is not
+      // an achievement, it is a short page
+      if(doc.scrollHeight < window.innerHeight+240) return;
+      if(window.scrollY+window.innerHeight >= doc.scrollHeight-4) fireSecret(19);
+    };
+    window.addEventListener("scroll",onScroll,{passive:true});
+    return ()=>window.removeEventListener("scroll",onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeSecret]);
+
   const handleSearchKeyDown=(e)=>{
     if(e.key==="Enter" && search.trim().toLowerCase()==="debug" && !foundSecrets.includes(8)){
-      setSecret8(true); markSecretFound(8); setTimeout(()=>setSecret8(false),14000);
+      revealSecret(8,setSecret8,14000);
     }
   };
 
   const handleThemeToggle=(e)=>{
     if(e?.shiftKey && !foundSecrets.includes(9)){
-      setSecret9(true); markSecretFound(9); setTimeout(()=>setSecret9(false),14000);
+      revealSecret(9,setSecret9,14000);
     }
     setIsDark(d=>!d);
     themeClickRef.current++;
     clearTimeout(themeTimerRef.current);
     if(themeClickRef.current>=10){
       themeClickRef.current=0;
-      setSecret10(true); markSecretFound(10); setTimeout(()=>setSecret10(false),12000);
+      revealSecret(10,setSecret10,12000);
     } else {
       themeTimerRef.current=setTimeout(()=>{themeClickRef.current=0;},3000);
     }
@@ -1337,7 +1357,7 @@ export default function Vault() {
     clearTimeout(featuredTimerRef.current);
     if(featuredClickRef.current>=7){
       featuredClickRef.current=0;
-      setSecret12(true); markSecretFound(12); setTimeout(()=>setSecret12(false),12000);
+      revealSecret(12,setSecret12,12000);
     } else {
       featuredTimerRef.current=setTimeout(()=>{featuredClickRef.current=0;},2000);
     }
@@ -1375,7 +1395,7 @@ export default function Vault() {
       scrambleRef.current=setInterval(()=>{
         ticks++;
         setLogoDisplay(Array.from("SoftwareVault").map(()=>GLITCH[Math.floor(Math.random()*GLITCH.length)]).join(""));
-        if(ticks>=18){clearInterval(scrambleRef.current);setLogoDisplay("SoftwareVault");setSecret2(true);markSecretFound(2);setTimeout(()=>setSecret2(false),12000);}
+        if(ticks>=18){clearInterval(scrambleRef.current);setLogoDisplay("SoftwareVault");revealSecret(2,setSecret2,12000);}
       },50);
     } else { logoTimerRef.current=setTimeout(()=>{logoClicksRef.current=0;},1300); }
   };
@@ -1384,7 +1404,7 @@ export default function Vault() {
     heroHoldRef.current=true;
     heroTimerRef.current=setTimeout(()=>{
       if(heroHoldRef.current){
-        setSecret3(true); markSecretFound(3); setTimeout(()=>setSecret3(false),10000);
+        revealSecret(3,setSecret3,10000);
       }
     },1200);
   };
@@ -1406,7 +1426,7 @@ export default function Vault() {
     if(e.altKey){
       if(altHoverTimerRef.current) return;
       altHoverTimerRef.current=setTimeout(()=>{
-        setSecret6(true); markSecretFound(6); setTimeout(()=>setSecret6(false),8000);
+        revealSecret(6,setSecret6,8000);
       },2500);
     } else {
       clearTimeout(altHoverTimerRef.current);
@@ -1421,7 +1441,7 @@ export default function Vault() {
   const handleStatsClick=()=>{
     statsClickRef.current++;
     clearTimeout(statsTimerRef.current);
-    if(statsClickRef.current>=5){statsClickRef.current=0;setSecret5(true);markSecretFound(5);setTimeout(()=>setSecret5(false),12000);}
+    if(statsClickRef.current>=5){statsClickRef.current=0;revealSecret(5,setSecret5,12000);}
     else statsTimerRef.current=setTimeout(()=>{statsClickRef.current=0;},1500);
   };
 
@@ -1773,6 +1793,17 @@ export default function Vault() {
   if(sort==="popular") vis.sort((a,b)=>(b.dl||0)-(a.dl||0));
   else if(sort==="az") vis.sort((a,b)=>a.name.localeCompare(b.name));
   else vis.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  // #15 — ask the search for something that plainly is not here, and sit with
+  // the empty answer. Needs `vis`, so it lives here rather than up with the
+  // other effects.
+  const noResults = search.trim().length>=3 && vis.length===0;
+  useEffect(()=>{
+    if(!noResults) return;
+    const t=setTimeout(()=>fireSecret(15),900);   // a beat, so mid-typing doesn't count
+    return ()=>clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[noResults]);
+
   const getSd=(n)=>sett.secretDownloads?.[n-1];
   const hiddenSecret10 = getSd(10);
   const glitchFeaturedCard = glitchFeatureActive && !hideCorruption && hiddenSecret10?.enabled && hiddenSecret10?.name && hiddenSecret10?.url ? {
@@ -1808,7 +1839,7 @@ export default function Vault() {
   const baseBtn=(active=false)=>({border:th.bdr,background:active?th.blk:th.card,color:active?th.card:th.blk,padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,cursor:"pointer",filter:`drop-shadow(4px 4px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"all .18s ease",fontWeight:active?600:400});
 
   const CardWithSecrets=({p,...rest})=>(
-    <ProgramCard p={p} {...rest} corruptionLevel={corruptionLevel} onTitleHold={(prog)=>{ setS7CardName(prog.name); setSecret7(true); markSecretFound(7); setTimeout(()=>setSecret7(false),14000); }} onContextMenu={(prog)=>{ setSecret11(true); markSecretFound(11); setTimeout(()=>setSecret11(false),12000); }} onFeaturedClick={handleFeaturedClick} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
+    <ProgramCard p={p} {...rest} corruptionLevel={corruptionLevel} onTitleHold={(prog)=>{ setS7CardName(prog.name); revealSecret(7,setSecret7,14000); }} onContextMenu={(prog)=>{ revealSecret(11,setSecret11,12000); }} onFeaturedClick={handleFeaturedClick} customDlBtn={<ChargeDownloadBtn prog={p}/>}/>
   );
 
   const ChargeDownloadBtn=({prog})=>{
@@ -1831,7 +1862,7 @@ export default function Vault() {
           clearInterval(holdInterval.current);
           didCharge.current=true;
           setCharge(0); setCharging(false);
-          setSecret9(true); markSecretFound(9); setTimeout(()=>setSecret9(false),14000);
+          revealSecret(9,setSecret9,14000);
           setTimeout(()=>download(prog),400);
         }
       },50);
@@ -2047,7 +2078,7 @@ export default function Vault() {
           </span>
         </button>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <select value={lang} onChange={e=>setLang(e.target.value)} style={{padding:"5px 8px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:th.inputBg,color:th.blk,cursor:"pointer",filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")"}}>
+          <select value={lang} onChange={e=>{setLang(e.target.value);seenLangs.current.add(e.target.value);if(seenLangs.current.size>=LANGS.length)fireSecret(16);}} style={{padding:"5px 8px",border:th.bdr,fontFamily:"'IBM Plex Mono',monospace",fontSize:11,background:th.inputBg,color:th.blk,cursor:"pointer",filter:"drop-shadow(2px 2px 0 "+th.sh2.split(" ").slice(3).join(" ")+")"}}>
             {LANGS.map(l=><option key={l.c} value={l.c}>{l.l}</option>)}
           </select>
           <button onClick={handleThemeToggle} style={{width:34,height:34,border:th.bdr,background:th.card,color:th.blk,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",filter:`drop-shadow(4px 4px 0 ${th.sh2.split(" ").slice(3).join(" ")})`,transition:"filter 0.1s, transform 0.1s"}}
@@ -2149,7 +2180,7 @@ export default function Vault() {
               )}
               {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
               {foundSecrets.length > 0 && (
-              <div style={{marginTop:18,display:"flex",gap:12,flexWrap:"wrap"}}>
+              <div className="sv-corruption" style={{marginTop:18,display:"flex",gap:12,flexWrap:"wrap"}}>
                 <Btn th={th} v={hideCorruption?"dark":"ghost"} onClick={()=>{ setHideCorruption(!hideCorruption); ping(hideCorruption?'Corruption revealed.':'Corruption hidden.'); }} style={{minWidth:180}}>
                   {hideCorruption?'Reveal corruption':'Hide corruption'}
                 </Btn>
@@ -2161,12 +2192,12 @@ export default function Vault() {
             </div>
           </section>
 
-          <div style={{maxWidth:980,margin:"0 auto",padding:"28px 40px 0"}}>
+          <div className="sv-filters" style={{maxWidth:980,margin:"0 auto",padding:"28px 40px 0"}}>
             <div style={{display:"grid",gap:10,marginBottom:14}}>
               <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                 {CATS.map((c,i)=>{
                   const count=c==="All"?progs.length:progs.filter(p=>p.cat===c).length;
-                  return <button key={c} className="btn-animated" onClick={()=>setCat(c)} style={{...baseBtn(cat===c),marginBottom:8,position:"relative",zIndex:cat===c?2:1}}>
+                  return <button key={c} className="btn-animated" onClick={()=>{setCat(c);if(count===0&&c!=="All")fireSecret(13);}} style={{...baseBtn(cat===c),marginBottom:8,position:"relative",zIndex:cat===c?2:1}}>
                     {tr.cats[i]||c} <span style={{opacity:.4}}>{`(${count})`}</span>
                   </button>;
                 })}
