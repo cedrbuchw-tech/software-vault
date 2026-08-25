@@ -213,7 +213,12 @@ export function useAuth() {
       setLoading(false);
     }).catch(() => active && setLoading(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
+      const next = session?.user ?? null;
+      // Keep the SAME object when it is the same account. Supabase refreshes
+      // the token whenever the tab regains focus, and handing back a fresh
+      // object each time re-ran every effect keyed on `user` — which is how
+      // party mode kept switching itself back on when you tabbed back in.
+      setUser((prev) => (prev && next && prev.id === next.id ? prev : next));
     });
     return () => { active = false; sub?.subscription?.unsubscribe?.(); };
   }, []);

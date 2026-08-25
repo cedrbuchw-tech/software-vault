@@ -16,14 +16,22 @@ const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
 const partyUnlockedKey = (userId) => userId ? `vault_party_unlocked_${userId}` : null;
 const partyEnabledKey  = (userId) => userId ? `vault_party_enabled_${userId}` : null;
 const CATS  = ["All","Tools","Games","Utilities","Media","Dev","Other"];
-const OSS   = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"},{id:"web",l:"Web"}];
+const OSS   = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"},
+               {id:"android",l:"Android"},{id:"ios",l:"iOS"},{id:"web",l:"Web"}];
 const BLANK = {name:"",desc:"",ver:"1.0",cat:"Tools",url:"",file:null,os:[],coverImage:null,screenshots:[]};
 const LANGS = [{c:"en",l:"EN"},{c:"de",l:"DE"},{c:"es",l:"ES"},{c:"no",l:"NO"},
                {c:"pt",l:"PT"},{c:"ja",l:"JA"},{c:"zh",l:"ZH"},{c:"ru",l:"RU"}];
 const BLANK_DL = {name:"",desc:"",url:"",enabled:false};
-const OS_DL = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"}];
-const freshBuilds = () => ({win:{file:null,url:""},mac:{file:null,url:""},lin:{file:null,url:""}});
-const freshEditBuilds = () => ({win:{file:null,url:"",remove:false},mac:{file:null,url:"",remove:false},lin:{file:null,url:"",remove:false}});
+// Every downloadable build target, in one place. Both admin forms and the
+// per-OS download buttons iterate this, so a new platform is one entry here —
+// android covers Samsung/Galaxy handsets, ios covers iPhone and iPad.
+const OS_DL = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"},
+               {id:"android",l:"Android"},{id:"ios",l:"iOS"}];
+const OS_DL_IDS = OS_DL.map(o=>o.id);
+const freshBuilds = () =>
+  Object.fromEntries(OS_DL_IDS.map(id=>[id,{file:null,url:""}]));
+const freshEditBuilds = () =>
+  Object.fromEntries(OS_DL_IDS.map(id=>[id,{file:null,url:"",remove:false}]));
 const hasBuilds = (p) => !!(p && p.downloads && OS_DL.some(o => p.downloads[o.id] && p.downloads[o.id].url));
 function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
   const dls = prog.downloads || {};
@@ -768,33 +776,55 @@ const IDB_STORE = "kv";
 
 function openDB() {
   return new Promise((res, rej) => {
-    if (typeof window === "undefined") { rej(new Error("ssr")); return; }
-    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    if (typeof window === "undefined" || !window.indexedDB) { rej(new Error("no indexedDB")); return; }
+
+    // This used to be able to hang forever, and everything in the page's load
+    // sequence awaits it. `onblocked` (another tab holding an old version) fires
+    // NEITHER onsuccess nor onerror, and a browser that refuses IndexedDB
+    // outright — private windows, locked-down mobile, blocked third-party
+    // storage — can simply never call back. The page then sat behind its
+    // loading screen indefinitely.
+    let settled = false;
+    const finish = (fn, v) => { if (!settled) { settled = true; fn(v); } };
+    const timer = setTimeout(() => finish(rej, new Error("indexedDB timed out")), 3000);
+
+    let req;
+    try { req = window.indexedDB.open(IDB_NAME, IDB_VER); }
+    catch (e) { clearTimeout(timer); finish(rej, e); return; }
+
     req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
-    req.onsuccess = e => res(e.target.result);
-    req.onerror   = e => rej(e.target.error);
+    req.onsuccess = e => { clearTimeout(timer); finish(res, e.target.result); };
+    req.onerror   = e => { clearTimeout(timer); finish(rej, e.target.error); };
+    req.onblocked = () => { clearTimeout(timer); finish(rej, new Error("indexedDB blocked")); };
   });
+}
+
+/** Never let a stuck IndexedDB request outlive its usefulness. */
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([promise, new Promise(r => setTimeout(() => r(fallback), ms))]);
 }
 async function idbGet(key) {
   try {
     const db = await openDB();
-    return new Promise((res, rej) => {
+    const read = new Promise((res, rej) => {
       const tx  = db.transaction(IDB_STORE, "readonly");
       const req = tx.objectStore(IDB_STORE).get(key);
       req.onsuccess = () => res(req.result ?? null);
       req.onerror   = () => rej(req.error);
     });
+    return await withTimeout(read, 3000, null);
   } catch { return null; }
 }
 async function idbSet(key, value) {
   try {
     const db = await openDB();
-    return new Promise((res, rej) => {
+    const write = new Promise((res, rej) => {
       const tx  = db.transaction(IDB_STORE, "readwrite");
       const req = tx.objectStore(IDB_STORE).put(value, key);
       req.onsuccess = () => res();
       req.onerror   = () => rej(req.error);
     });
+    return await withTimeout(write, 3000, undefined);
   } catch {}
 }
 
@@ -858,7 +888,12 @@ export default function Vault() {
     fetchMyLikes(user.id).then((ids) => { if (active) setLikes(ids); });
     fetchMyLibrary(user.id).then((ids) => { if (active) setLibraryState(ids); });
     return () => { active = false; };
-  }, [user]);
+    // user?.id, NOT user: Supabase hands back a brand-new user object every
+    // time it refreshes the token, which happens on every tab focus. Keyed
+    // on the object this re-ran constantly; keyed on the id it runs when the
+    // account actually changes, which is the only time it should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -870,14 +905,19 @@ export default function Vault() {
     const unlocked = ls.get(partyUnlockedKey(user.id)) === "1";
     const enabled = ls.get(partyEnabledKey(user.id)) === "1";
     setPartyUnlocked(unlocked);
-    if (unlocked && enabled) {
-      setPartyMode(true);
-      setPartySecret(true);
-    } else {
-      setPartyMode(false);
-      setPartySecret(false);
-    }
-  }, [user]);
+    // Restore the MODE but never the announcement panel. partySecret is the
+    // "Party Mode Active / Stop Party" dialog, and setting it here meant the
+    // dialog reappeared — and party switched itself back on — every single
+    // time this effect re-ran. Which was every tab focus: see the [user?.id]
+    // dependency note below.
+    setPartyMode(unlocked && enabled);
+    setPartySecret(false);
+    // user?.id, NOT user: Supabase hands back a brand-new user object every
+    // time it refreshes the token, which happens on every tab focus. Keyed
+    // on the object this re-ran constantly; keyed on the id it runs when the
+    // account actually changes, which is the only time it should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const setUserPartyEnabled = (enabled) => {
     if (!user) return;
@@ -925,7 +965,12 @@ export default function Vault() {
         setAdminProblem(`Admin check could not run: ${e?.message || e}`);
       }
     })();
-  }, [user]);
+    // user?.id, NOT user: Supabase hands back a brand-new user object every
+    // time it refreshes the token, which happens on every tab focus. Keyed
+    // on the object this re-ran constantly; keyed on the id it runs when the
+    // account actually changes, which is the only time it should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
   const [sett,setSett]             = useState({ann:{text:"",type:"info",visible:false},support:{url:"",msg:"",visible:false},heroSub:"",secretDownloads:[],twoFactorEnabled:false});
   const [ready,setReady]           = useState(false);
   const [isDark,setIsDark]         = useState(false);
@@ -962,6 +1007,14 @@ export default function Vault() {
   const [delId,setDelId]           = useState(null);
   const [uploadKey,setUploadKey]   = useState(0);
   const [isInitializing,setIsInitializing] = useState(true);
+  const [splashLeaving,setSplashLeaving]   = useState(false);
+  // Belt and braces: whatever goes wrong during startup, the loading screen
+  // comes down. A splash that waits for a real signal is right up until the
+  // signal never arrives, and then it is a locked door.
+  useEffect(()=>{
+    const t=setTimeout(()=>{ setSplashLeaving(true); setTimeout(()=>setIsInitializing(false),450); },9000);
+    return ()=>clearTimeout(t);
+  },[]);
 
   const [secret1,setSecret1]   = useState(false);
   const [secret2,setSecret2]   = useState(false);
@@ -1075,40 +1128,51 @@ export default function Vault() {
   },[]);
 
   useEffect(()=>{
+    // Nothing here may hang the page. A request with no timeout in the startup
+    // path is a loading screen with no end.
+    const withT=(promise,ms=8000)=>Promise.race([promise,new Promise(r=>setTimeout(()=>r(null),ms))]);
+    const getJSON=(url,opts)=>withT(
+      fetch(url,opts).then(r=>r.ok?r.json():null).catch(()=>null));
+
     (async()=>{
       try {
-        // check server for admin existence / auth
-        try {
-          const sess = await supabase.auth.getSession();
-          const token = sess?.data?.session?.access_token || null;
-          const headers = token ? { Authorization: `Bearer ${token}` } : {};
-          const r = await fetch('/api/admin', { headers });
-          if (r.ok) {
-            const j = await r.json();
-            setHasAdmin(!!j.exists);
-            if (j.authed) { setIsAdmin(true); }
-            if (j.adminEmail) setAdminEmail(j.adminEmail);
-          } else {
-            const body = await r.json().catch(() => ({}));
-            console.warn("[vault] admin check failed:", r.status, body.error || "");
-          }
-        } catch (e) { console.warn("[vault] admin check could not run:", e); }
+        // The admin check decides whether YOU see a panel. It has nothing to do
+        // with rendering the site, so it runs alongside instead of in front —
+        // it used to be the first await of three sequential round-trips, and
+        // every visitor waited for it before seeing a single program.
+        (async()=>{
+          try {
+            const sess = await supabase.auth.getSession();
+            const token = sess?.data?.session?.access_token || null;
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const r = await withT(fetch('/api/admin', { headers }));
+            if (r && r.ok) {
+              const j = await r.json();
+              setHasAdmin(!!j.exists);
+              if (j.authed) { setIsAdmin(true); }
+              if (j.adminEmail) setAdminEmail(j.adminEmail);
+              if (j.problem) {
+                console.warn("[vault] admin panel hidden:", j.problem);
+                if (j.problemKind === "error" || !j.exists) setAdminProblem(j.problem);
+              }
+            } else if (r) {
+              const body = await r.json().catch(() => ({}));
+              console.warn("[vault] admin check failed:", r.status, body.error || "");
+            }
+          } catch (e) { console.warn("[vault] admin check could not run:", e); }
+        })();
 
-        // Try to load programs from Supabase first
-        let loadedProgs = null;
-        let supabaseLoaded = false;
-        try {
-          const r = await fetch('/api/programs');
-          if (r.ok) {
-            const j = await r.json();
-            loadedProgs = j.programs || [];
-            supabaseLoaded = true;
-          }
-        } catch (e) {
-          console.warn("Could not load from Supabase:", e);
-        }
+        // programs and settings are both needed to paint, so fetch them at the
+        // same time rather than one after the other
+        const [progJson, settJson] = await Promise.all([
+          getJSON('/api/programs'),
+          getJSON('/api/settings', { cache: 'no-store' }),
+        ]);
 
-        // Only fall back to IndexedDB if Supabase load failed AND IndexedDB has data
+        let loadedProgs = progJson ? (progJson.programs || []) : null;
+        const supabaseLoaded = !!progJson;
+
+        // Only fall back to IndexedDB if the server gave us nothing usable
         if (!supabaseLoaded || (loadedProgs && loadedProgs.length === 0)) {
           const idbProgs = await idbGet(K.progs);
           if (idbProgs && idbProgs.length > 0) {
@@ -1122,11 +1186,11 @@ export default function Vault() {
         // banner. IndexedDB is only a fallback for when the server can't be
         // reached — it is per-browser, which is exactly why a published banner
         // used to be visible to nobody but the admin who wrote it.
-        let savedSett=null;
-        try{
-          const sr=await fetch('/api/settings',{cache:'no-store'});
-          if(sr.ok){ const sj=await sr.json(); if(sj.settings) savedSett=sj.settings; }
-        }catch(e){ console.warn("[vault] could not load site settings:",e); }
+        let savedSett = settJson?.settings || null;
+        // The route answers 200 even when the database read failed, so a broken
+        // settings table can never take the whole site down. That also makes a
+        // failure look exactly like "nothing saved yet" — hence saying so.
+        if (settJson?.error) console.warn("[vault] site settings unreadable:", settJson.error);
         if(!savedSett) savedSett=await idbGet(K.sett);
 
         if(savedSett){
@@ -1145,7 +1209,22 @@ export default function Vault() {
         const fd=ls.get(K.found); if(fd){const f=JSON.parse(fd);foundRef.current=f;setFoundSecrets(f);}
       } catch(e){ console.error("Storage load error:",e); }
       setReady(true);
-      setTimeout(()=>setIsInitializing(false), 600);
+      // The splash used to disappear on a flat 600ms timer, which had nothing
+      // to do with whether anything was ready — so it vanished while the UI was
+      // still assembling. Wait for the webfonts (Anton/IBM Plex arrive late and
+      // reflow the whole page when they land) and then for two animation
+      // frames, so React has actually painted the grid before we uncover it.
+      // fade it out, THEN unmount — the overlay used to animate itself away
+      // after 0.5s via `fadeout .5s ease 0.5s forwards` baked into its style,
+      // so it went transparent on a fixed timer no matter what was still
+      // loading behind it. Now the leaving state drives the fade.
+      const done=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        setSplashLeaving(true);
+        setTimeout(()=>setIsInitializing(false),450);
+      }));
+      const fonts=(typeof document!=="undefined"&&document.fonts)?document.fonts.ready:Promise.resolve();
+      // never hang the splash forever on a font that will not load
+      Promise.race([fonts,new Promise(r=>setTimeout(r,6000))]).then(done).catch(done);
     })();
   },[]);
 
@@ -1499,6 +1578,18 @@ export default function Vault() {
         ping(j.error||`Saved on this device only — the server refused (${r.status}).`,"err");
         return false;
       }
+      // Read it straight back. "It saved" and "it saved somewhere everyone can
+      // see it" are different claims, and only the second one is the point.
+      try{
+        const v=await fetch('/api/settings',{cache:'no-store'});
+        const vj=await v.json().catch(()=>({}));
+        if(!vj.settings){
+          ping(vj.error?`Server error storing settings: ${vj.error}`
+                       :"The server accepted it but has nothing stored — check the settings table exists.","err");
+          return false;
+        }
+      }catch{ /* the save itself succeeded; the check is a bonus */ }
+      ping("Published — everyone sees this now.");
       return true;
     }catch(e){
       console.error("Failed to publish settings:",e);
@@ -1564,7 +1655,7 @@ export default function Vault() {
     setBusy(true);
     try{
       const downloads={};
-      for(const o of ["win","mac","lin"]){
+      for(const o of OS_DL_IDS){
         const b=(form.builds||{})[o]||{};
         if(b.file){
           if(b.file.size>50_000_000){ping(o+": over 50 MB — paste a URL instead.","err");setBusy(false);return;}
@@ -1591,7 +1682,7 @@ export default function Vault() {
     setBusy(true);
     try{
       const downloads={...(editForm.downloads||{})};
-      for(const o of ["win","mac","lin"]){
+      for(const o of OS_DL_IDS){
         const b=(editForm.builds||{})[o]||{};
         if(b.remove){ delete downloads[o]; continue; }
         if(b.file){
@@ -1910,7 +2001,7 @@ export default function Vault() {
     <div id="sv-root" className={postGlitch?"glitchy":""} style={{position:"relative",minHeight:"100vh",overflow:"hidden",background:th.bg,color:th.blk,fontFamily:"'IBM Plex Mono','Courier New',monospace",animation:partyMode?"partyShift .65s linear infinite":"none"}}>
       {isInitializing&&(
         <Portal>
-        <div className="sv-overlay" style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:"fadein .4s ease, fadeout .5s ease 0.5s forwards",overflow:"hidden",pointerEvents:"none"}}>
+        <div className="sv-overlay" style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:splashLeaving?"fadeout .45s ease forwards":"fadein .4s ease",overflow:"hidden",pointerEvents:"none"}}>
           <div style={{position:"absolute",inset:0}}>
             <div style={{position:"absolute",top:"15%",right:"15%",width:250,height:250,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.08,borderRadius:"50%",filter:"blur(50px)"}}/>
             <div style={{position:"absolute",bottom:"15%",left:"10%",width:180,height:180,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.05,borderRadius:"50%",filter:"blur(40px)"}}/>
