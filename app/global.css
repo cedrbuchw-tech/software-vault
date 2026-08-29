@@ -690,15 +690,11 @@ img, video, canvas, svg { max-width: 100%; }
 	/* every side-by-side admin form field stacks */
 	[style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
 
-	/* the announcement banner was nowrap + overflow:hidden, so anything longer
-	   than the screen was simply sliced off at both ends */
-	[style*="annSlide"] {
-		white-space: normal !important;
-		padding: 10px 16px !important;
-		font-size: 11px !important;
-	}
-	[style*="annMarquee"] { animation: none !important; }
-	[style*="annMarquee"] span:nth-child(2) { display: none !important; }
+	/* The banner works out for itself whether it needs to scroll, by measuring
+	   its own text against its own width (see AnnouncementBanner). Forcing
+	   white-space or killing the animation from here fought with that decision,
+	   so all this does now is trim the gutters. */
+	.sv-ann { padding: 10px 16px !important; font-size: 11px !important; }
 
 	/* four admin tabs at 22px padding do not fit — let the row scroll */
 	.sv-admin-tabs {

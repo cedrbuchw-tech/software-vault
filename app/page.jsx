@@ -49,84 +49,93 @@ function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
   );
 }
 
-// Three strings per secret, for three different readers:
+// Two strings per secret, for two different readers:
 //
 //   trigger — its name, shown once you have it.
-//   howto   — the flat instruction. ADMIN PANEL ONLY. Never render this on the
-//             public site; it is the answer key.
 //   hint    — what a hunter sees for the secret they have NOT found yet.
 //
-// The hints are written to name the PLACE and the KIND of gesture, and to stop
-// there. "The mark at the top was not made to be pressed once" tells you where
-// to go and that repetition matters, without handing over the number. Someone
-// stuck should be able to act on one of these within a few seconds; someone who
-// wants to work it out alone should not feel it was solved for them.
+// A THIRD string used to live here: `howto`, the flat instruction, rendered
+// only in the admin panel. That was a mistake. This is a client component, so
+// every one of those twenty answers was compiled into the bundle and served to
+// every visitor — the admin-only check governed what was DISPLAYED, never what
+// was DELIVERED. Anyone who searched the bundle for "Konami" had the lot.
+// The answer key now lives in lib/secret_answers.js and comes back from
+// GET /api/admin/secrets, which refuses anyone who is not an admin. Do not put
+// it back in this file; see the note at the top of that module.
+//
+// The hints stay client-side on purpose. They are written to name the PLACE and
+// the KIND of gesture and to stop there — "the mark at the top was not made to
+// be pressed once" tells you where to go and that repetition matters, without
+// handing over the number — and the site shows them one at a time anyway.
+// Someone stuck should be able to act on one of these within a few seconds;
+// someone who wants to work it out alone should not feel it was solved for them.
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
-   hint:"Contra. Gradius. A thousand cabinets besides. Eight directions on the arrow keys — and then, because everyone forgets this part, the two buttons.",
-   howto:"Press Up Up Down Down Left Right Left Right B A anywhere on the page. (Konami Code)"},
+   hint:"Contra. Gradius. A thousand cabinets besides. Eight directions on the arrow keys — and then, because everyone forgets this part, the two buttons."},
   {trigger:"Pulse Overload",
-   hint:"Circles demand repetition. The mark at the very top of the page was not made to be pressed once — and not slowly.",
-   howto:"Click the 'Vault' icon in the header five times quickly. Fault spawned."},
+   hint:"Circles demand repetition. The mark at the very top of the page was not made to be pressed once — and not slowly."},
   {trigger:"Core Breach",
-   hint:"The largest words here are not only for reading. Take hold of one and refuse to let go for a second or so.",
-   howto:"Hold the main title for 1.2 seconds. Core unlocked."},
+   hint:"The largest words here are not only for reading. Take hold of one and refuse to let go for a second or so."},
   {trigger:'Command "open"',
-   hint:"This vault has no keyhole; it listens instead. Say the plainest word there is for what you want it to do — with no box to type it into.",
-   howto:'Type O-P-E-N outside text fields. Gate opened.'},
+   hint:"This vault has no keyhole; it listens instead. Say the plainest word there is for what you want it to do — with no box to type it into."},
   {trigger:"Audit Spike",
-   hint:"Numbers get nervous when they are watched too closely. The tally under the heading flinches if you keep tapping it.",
-   howto:"Click the program/download/featured counters five times quickly. Audit spiked."},
+   hint:"Numbers get nervous when they are watched too closely. The tally under the heading flinches if you keep tapping it."},
   {trigger:"Faultline Trace",
-   hint:"At the very bottom the name repeats itself. Rest on it a while — but hold down the key that means *alternate* the whole time.",
-   howto:"Hover footer \"Vault\" text while holding Alt for 2.5 seconds. Trace detected."},
+   hint:"At the very bottom the name repeats itself. Rest on it a while — but hold down the key that means *alternate* the whole time."},
   {trigger:"Card Fault",
-   hint:"Every card in the grid carries a name. Grip one long enough and the letters lose their nerve.",
-   howto:"Hold a program title for 1.5 seconds. Card fault triggered."},
+   hint:"Every card in the grid carries a name. Grip one long enough and the letters lose their nerve."},
   {trigger:"Debug Probe",
-   hint:"The search box hunts for programs. Ask it instead for the word an engineer types when nothing works, and commit to it.",
-   howto:"Type debug in search and press Enter. Debug mode active."},
+   hint:"The search box hunts for programs. Ask it instead for the word an engineer types when nothing works, and commit to it."},
   {trigger:"Schema Override",
-   hint:"Day and night trade places at a single switch. Press it the way you would press anything to select a whole range at once.",
-   howto:"Shift+click the theme switch. Schema override injected."},
+   hint:"Day and night trade places at a single switch. Press it the way you would press anything to select a whole range at once."},
   {trigger:"Schema Flip",
-   hint:"Then do it again. And again. The schema can only take so many sunrises in a row before something in it gives.",
-   howto:"Toggle theme ten times rapidly. Schema fractured."},
+   hint:"Then do it again. And again. The schema can only take so many sunrises in a row before something in it gives."},
   {trigger:"Data Cascade",
-   hint:"Cards answer to the left button all day long. Ask one a question with the other side of the mouse.",
-   howto:"Right-click and hold on any program card for 2 seconds. Data cascade initiated."},
+   hint:"Cards answer to the left button all day long. Ask one a question with the other side of the mouse."},
   {trigger:"Vault Resonance",
-   hint:"One card wears a star it did not earn. Press the star until the vault hums back — more times than seems reasonable.",
-   howto:"Click the featured badge (★) 7 times rapidly. Vault resonates."},
+   hint:"One card wears a star it did not earn. Press the star until the vault hums back — more times than seems reasonable."},
 
   // ── 13–20 ────────────────────────────────────────────────────────────────
   // Half of these are nods to things older than this website. A hint may point
   // at the reference, never at the keystrokes.
   {trigger:"Empty Shelf",
-   hint:"The category buttons each tell you how many programs they hold. One of them proudly says zero. Open it anyway — nobody ever does.",
-   howto:"Click a category chip whose count reads (0)."},
+   hint:"The category buttons each tell you how many programs they hold. One of them proudly says zero. Open it anyway — nobody ever does."},
   {trigger:"Degreelessness Mode",
-   hint:"Doom, 1993. Five letters typed mid-game and nothing in hell could touch you. Every kid with a copy knew them by heart.",
-   howto:"Type I-D-D-Q-D outside text fields. (Doom)"},
+   hint:"Doom, 1993. Five letters typed mid-game and nothing in hell could touch you. Every kid with a copy knew them by heart."},
   {trigger:"No Results",
-   hint:"The search box is very good at finding things. Ask it for something that plainly is not in here, and then sit with the empty answer for a moment instead of retyping.",
-   howto:"Search 3+ characters that match no program, and stay on the empty result ~1s."},
+   hint:"The search box is very good at finding things. Ask it for something that plainly is not in here, and then sit with the empty answer for a moment instead of retyping."},
   {trigger:"Polyglot",
-   hint:"The little dropdown up in the corner speaks eight languages. Visit every one of them in a single sitting, and the vault notices someone reading it every way it can be read.",
-   howto:"Switch the language selector through all 8 languages in one session."},
+   hint:"The little dropdown up in the corner speaks eight languages. Visit every one of them in a single sitting, and the vault notices someone reading it every way it can be read."},
   {trigger:"Root Access",
-   hint:"The mark at the top answers plain clicks by going home. Hold the key that literally means *control* while you click it, and it answers as something with privileges.",
-   howto:"Ctrl+click (or Cmd+click) the header logo."},
+   hint:"The mark at the top answers plain clicks by going home. Hold the key that literally means *control* while you click it, and it answers as something with privileges."},
   {trigger:"No Exit",
-   hint:"Your keyboard has a key for leaving. Press it three times in a row and find out whether this place honours it.",
-   howto:"Press Escape three times within two seconds."},
-  {trigger:"The Floor",
-   hint:"Everything worth reading is near the top, so go the other way. All the way down, past the last program, until the page physically refuses to move any further.",
-   howto:"Scroll to the very bottom of the home page (needs a page taller than the window)."},
+   hint:"Your keyboard has a key for leaving. Press it three times in a row and find out whether this place honours it."},
+  {trigger:"Full Spectrum",
+   hint:"The platform row exists to narrow things down, so nobody ever switches on more than one or two. Refuse to narrow anything: leave every single platform lit at the same time, and see whether the vault notices being asked for everything at once."},
   {trigger:"Stillness",
-   hint:"Everything else here rewards doing something. One thing rewards the exact opposite: put your hands in your lap and leave the page completely untouched for the better part of a minute.",
-   howto:"No mouse, key or scroll input for 45 seconds while the tab is visible."},
+   hint:"Everything else here rewards doing something. One thing rewards the exact opposite — and it is not impatient about it. Leave the page completely untouched, tab still open and in front of you, for half an hour. Go and do something else; it will keep."},
 ];
+
+/**
+ * FNV-1a, 32-bit. Used to keep the two typed codes out of the bundle as words.
+ *
+ * `if (typed.includes("<the word>"))` reads perfectly well in minified
+ * JavaScript — minifiers rename variables, never string literals — so anyone
+ * who opened the bundle and searched for likely-looking short words found both
+ * codes in about ten seconds. A checksum cannot be searched for by somebody who
+ * does not already know the answer, and the only way back to the word is to
+ * guess words and hash them, which is exactly what playing the game is.
+ *
+ * Be clear-eyed about what this is: a speed bump, not a lock. Anybody willing
+ * to set a breakpoint on the keydown handler can still read the buffer as they
+ * type. Nothing a browser has to evaluate can be kept from the person running
+ * the browser; the point is only that idle curiosity no longer spoils the hunt.
+ */
+const typedCode=(s)=>{
+  let h=0x811c9dc5;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; }
+  return h;
+};
 
 /**
  * Secrets 13–20 all share one overlay.
@@ -148,10 +157,10 @@ const SCENES = {
       body:"you held control and clicked the mark.\nit answered as something with privileges."},
   18:{kicker:"NO EXIT",           title:"DENIED",            accent:"#f43f5e", ink:"#ffd9e1", panel:"#170610", back:"#0b0308",
       body:"you asked to leave three times.\nthe vault logged each request and kept the door shut."},
-  19:{kicker:"THE FLOOR",         title:"ROCK\nBOTTOM",      accent:"#38bdf8", ink:"#d5efff", panel:"#04121a", back:"#02080d",
-      body:"you went all the way down, past everything worth reading.\nthere is nothing below this. that was rather the point."},
+  19:{kicker:"FULL SPECTRUM",     title:"EVERY\nPLATFORM",   accent:"#38bdf8", ink:"#d5efff", panel:"#04121a", back:"#02080d",
+      body:"six filters, all lit, narrowing nothing whatsoever.\nyou asked the vault for everything it runs on at once, and it obliged."},
   20:{kicker:"STILLNESS",         title:"PATIENCE",          accent:"#c8a84b", ink:"#f3e7c4", panel:"#12100a", back:"#080704",
-      body:"you did nothing at all, for long enough that the vault noticed.\nit had begun to think nobody ever would."},
+      body:"half an hour. no mouse, no key, no scroll — the tab simply sat here.\nthe vault waited the whole time, and saved this for the moment you came back."},
 };
 
 /** One panel, driven by SCENES. RGB-split title, scanlines, no bespoke markup. */
@@ -770,6 +779,84 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
   );
 }// ── PART 2 — paste directly after Part 1 ──
 
+/**
+ * The announcement bar.
+ *
+ * It used to decide whether to scroll from `ann.text.length > 60` — a character
+ * count, which knows nothing about how wide the window actually is. Scrolling
+ * works by rendering the text TWICE so the loop can be seamless, so on any
+ * screen where 60-odd characters comfortably fit, BOTH copies were simply
+ * visible side by side and the banner read as though it had been pasted in
+ * twice. It measures now, and only duplicates when there is genuinely something
+ * to scroll.
+ */
+function AnnouncementBanner({ text, colors }) {
+  const barRef = useRef(null);
+  const rulerRef = useRef(null);
+  const [overflows, setOverflows] = useState(false);
+  const [still, setStill] = useState(false);   // reduced motion
+
+  useEffect(() => {
+    const check = () => {
+      const bar = barRef.current, ruler = rulerRef.current;
+      if (bar && ruler) {
+        // a little slack so text that only just fits cannot flip-flop between
+        // modes on a one-pixel resize
+        setOverflows(ruler.offsetWidth > bar.clientWidth - 24);
+      }
+      setStill(
+        (typeof document !== "undefined" && document.documentElement.dataset.motion === "reduced") ||
+        (typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
+      );
+    };
+    check();
+
+    let ro;
+    if (typeof ResizeObserver !== "undefined" && barRef.current) {
+      ro = new ResizeObserver(check);
+      ro.observe(barRef.current);
+    }
+    window.addEventListener("resize", check);
+    // webfonts land after first paint and change how wide the text is
+    if (typeof document !== "undefined" && document.fonts) {
+      document.fonts.ready.then(check).catch(() => {});
+    }
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", check); };
+  }, [text]);
+
+  const scrolling = overflows && !still;
+
+  return (
+    <div ref={barRef} className="sv-ann"
+      style={{ background: colors.bg, borderBottom: `2px solid ${colors.b}`,
+               padding: "11px 40px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 12,
+               color: colors.t, textAlign: "center", lineHeight: 1.6,
+               animation: "annSlide .35s cubic-bezier(.22,1,.36,1) both",
+               overflow: "hidden", position: "relative" }}>
+
+      {/* An off-screen ruler holding exactly one unwrapped copy. Measuring this
+          rather than the visible content means the measurement never depends on
+          which mode we happen to be in — otherwise the two feed each other. */}
+      <span ref={rulerRef} aria-hidden="true"
+        style={{ position: "absolute", left: 0, top: 0, visibility: "hidden",
+                 whiteSpace: "nowrap", pointerEvents: "none" }}>{text}</span>
+
+      {scrolling ? (
+        <div style={{ display: "inline-flex", whiteSpace: "nowrap",
+                      animation: `annMarquee ${Math.max(18, text.length * 0.14)}s linear infinite` }}>
+          <span style={{ paddingRight: 100 }}>{text}</span>
+          {/* the second copy exists only to close the loop — never read it out */}
+          <span style={{ paddingRight: 100 }} aria-hidden="true">{text}</span>
+        </div>
+      ) : (
+        // fits: one copy, centred, still. Too long to fit but motion is off:
+        // wrap onto more lines rather than clipping the ends.
+        <span style={{ whiteSpace: overflows ? "normal" : "nowrap" }}>{text}</span>
+      )}
+    </div>
+  );
+}
+
 const IDB_NAME  = "softvault";
 const IDB_VER   = 1;
 const IDB_STORE = "kv";
@@ -1055,6 +1142,10 @@ export default function Vault() {
   const [usersBusy,setUsersBusy]   = useState(false);
   const [usersErr,setUsersErr]     = useState("");
   const [usersTruncated,setUsersTruncated] = useState(false);
+  // the secret answer key, fetched from /api/admin/secrets when the Secrets tab
+  // is opened. null until then — it is deliberately not in the bundle.
+  const [secretHowto,setSecretHowto] = useState(null);
+  const [howtoErr,setHowtoErr]       = useState("");
   const [userSaving,setUserSaving] = useState(null);
   const [reportBusy,setReportBusy] = useState(false);
   const [reportMsg,setReportMsg]   = useState(null);
@@ -1080,6 +1171,9 @@ export default function Vault() {
   const footerClickRef = useRef(0);
   const footerTimerRef = useRef(null);
   const escTimes       = useRef([]);
+  // #20: set when the half-hour of stillness has elapsed, cleared when the
+  // reveal is actually played to somebody who is back at the keyboard.
+  const stillnessRef   = useRef(false);
   const seenLangs      = useRef(new Set());
   const heroHoldRef      = useRef(false);
   const altHoverTimerRef = useRef(null);
@@ -1334,6 +1428,14 @@ export default function Vault() {
     // The real thing ends B, A — Contra, Gradius and a thousand others. Without
     // those two it is just eight arrows, which is the boring half.
     const SEQ=["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"];
+    // [length, FNV-1a checksum, what to fire]. The words themselves are not
+    // written down anywhere the browser can see — see typedCode() above. If you
+    // ever need to add one, hash it at build time and paste the number; do not
+    // be tempted to leave the plain word in a comment right next to it.
+    const CODES=[
+      [5,0x6c74e559,()=>fireSecret(14)],
+      [4,0xd35ec4c9,()=>revealSecret(4,setSecret4,12000)],
+    ];
     const handle=(e)=>{
       if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
       const key=e.key.length===1?e.key.toLowerCase():e.key;
@@ -1349,16 +1451,16 @@ export default function Vault() {
       }
       if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){
         typedRef.current=(typedRef.current+e.key.toLowerCase()).slice(-12);
-        if(typedRef.current.includes("open")){
-          typedRef.current=""; revealSecret(4,setSecret4,12000);
-        }
-        // the reference words. checked longest-first so a buffer holding two of
-        // them can't award the shorter one by accident.
-        // Only one typed code survives. The rest became things you find by
-        // using the site, because trivia you either know or you don't is not
-        // a hunt.
-        for(const [word,n] of [["iddqd",14]]){
-          if(typedRef.current.includes(word)){ typedRef.current=""; fireSecret(n); break; }
+        // Two typed codes survive — #4's plain-English one and #14's Doom one —
+        // and neither appears here as text. They are matched by checksum
+        // instead, longest first so a buffer holding both can't award the
+        // shorter one by accident. See CODES above for why the words are gone.
+        for(const [len,sum,fire] of CODES){
+          if(typedCode(typedRef.current.slice(-len))===sum){
+            typedRef.current="";
+            fire();
+            break;
+          }
         }
       }
     };
@@ -1370,15 +1472,36 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSecret]);
 
-  // #20 — the one secret you find by doing nothing. A hidden tab does not count
-  // as stillness; that is just a tab nobody is looking at.
+  // #20 — the one secret you find by doing nothing, for a full half hour.
+  //
+  // Two things stop this being a coin that pays out to nobody:
+  //
+  //   * a hidden tab does not count as stillness; that is just a tab nobody is
+  //     looking at, so switching away restarts the clock;
+  //   * the reveal is EARNED by the timer but SPENT on your return. Nobody sits
+  //     motionless in front of a screen for thirty minutes — they walk away.
+  //     Firing the overlay the instant the timer elapses would play it to an
+  //     empty chair and auto-dismiss it seconds later, marking a secret "found"
+  //     that its finder never saw. So the timer only sets a flag, and the next
+  //     sign of life cashes it in.
   useEffect(()=>{
     if(typeof window==="undefined") return;
+    const STILLNESS_MS=30*60*1000;
     let timer=null;
+    const spend=()=>{
+      if(!stillnessRef.current) return;
+      stillnessRef.current=false;
+      // longer than the usual 13s: this one is read by somebody who has just
+      // walked back to their desk and is still working out what changed.
+      fireSecret(20,18000);
+    };
     const arm=()=>{
+      spend();
       clearTimeout(timer);
       if(document.visibilityState!=="visible") return;
-      timer=setTimeout(()=>{ if(document.visibilityState==="visible") fireSecret(20); },45000);
+      timer=setTimeout(()=>{
+        if(document.visibilityState==="visible") stillnessRef.current=true;
+      },STILLNESS_MS);
     };
     const events=["mousemove","mousedown","keydown","wheel","touchstart","scroll"];
     events.forEach(ev=>window.addEventListener(ev,arm,{passive:true}));
@@ -1392,24 +1515,27 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSecret]);
 
-  // #19 — go all the way down. Replaces the old "make the window narrow"
-  // trigger, which no phone could ever perform.
+  // #19 — light every platform filter at once.
+  //
+  // Replaces "scroll to the very bottom", which was not really a secret: any
+  // visitor who read to the end of the page collected it without meaning to,
+  // and it told you nothing about the site on the way. Switching on all six
+  // platforms cannot happen by accident — the filter row exists to narrow the
+  // grid down, so lighting every one of them narrows nothing at all. It is a
+  // deliberately pointless gesture that only somebody poking at the site on
+  // purpose will make, and a phone can perform it exactly as easily as a
+  // desktop can.
   useEffect(()=>{
-    if(typeof window==="undefined") return;
-    const onScroll=()=>{
-      const doc=document.documentElement;
-      // a page shorter than the window is ALWAYS at its bottom; that is not
-      // an achievement, it is a short page
-      if(doc.scrollHeight < window.innerHeight+240) return;
-      if(window.scrollY+window.innerHeight >= doc.scrollHeight-4) fireSecret(19);
-    };
-    window.addEventListener("scroll",onScroll,{passive:true});
-    return ()=>window.removeEventListener("scroll",onScroll);
+    if(OSS.every(o=>osFilter.includes(o.id))) fireSecret(19);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[activeSecret]);
+  },[osFilter,activeSecret]);
 
   const handleSearchKeyDown=(e)=>{
-    if(e.key==="Enter" && search.trim().toLowerCase()==="debug" && !foundSecrets.includes(8)){
+    // #8's word is compared by checksum for the same reason the typed codes are
+    // — a literal here is one Ctrl+F away in the bundle. 0x5864ed98 is the
+    // FNV-1a of the word the hint describes.
+    if(e.key==="Enter" && typedCode(search.trim().toLowerCase())===0x5864ed98
+       && !foundSecrets.includes(8)){
       revealSecret(8,setSecret8,14000);
     }
   };
@@ -1835,6 +1961,30 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[page,adminTab,isAdmin]);
 
+  // ---- the answer key ------------------------------------------------------
+  // The twenty "how to trigger" lines are no longer part of this file. They
+  // used to be, as a field on SECRET_LABELS, and because this is a client
+  // component that meant every visitor downloaded the complete solution list
+  // whether they ever saw the admin panel or not. They now come from
+  // /api/admin/secrets, which serves them only to a signed-in admin, and they
+  // are fetched only when this tab is actually open.
+  const loadSecretAnswers=async()=>{
+    setHowtoErr("");
+    try{
+      const headers=await authHeaders();
+      if(!headers.Authorization){ setHowtoErr("Sign in as an admin to see the answers."); return; }
+      const r=await fetch('/api/admin/secrets',{headers,cache:'no-store'});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||"Could not load the answer key");
+      if(!Array.isArray(j.howto)) throw new Error("The server sent back something unexpected.");
+      setSecretHowto(j.howto);
+    }catch(e){ setHowtoErr(e?.message||"Could not load the answer key"); }
+  };
+  useEffect(()=>{
+    if(page==="admin"&&adminTab==="secrets"&&isAdmin&&!secretHowto) loadSecretAnswers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[page,adminTab,isAdmin,secretHowto]);
+
   // The monthly report is scheduled by vercel.json, which only exists in
   // production — locally nothing ever fires it. These buttons run it by hand so
   // it can actually be tested, and report what the server said either way.
@@ -2130,14 +2280,7 @@ export default function Vault() {
       )}
 
       {ann.visible&&ann.text&&(
-        <div style={{background:annC.bg,borderBottom:`2px solid ${annC.b}`,padding:"11px 40px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:annC.t,textAlign:"center",lineHeight:1.6,animation:"annSlide .35s cubic-bezier(.22,1,.36,1) both",overflow:"hidden",whiteSpace:"nowrap",position:"relative"}}>
-          {ann.text.length>60?(
-            <div style={{display:"inline-flex",animation:`annMarquee ${Math.max(20, ann.text.length*0.12)}s linear infinite`}}>
-              <span style={{paddingRight:100}}>{ann.text}</span>
-              <span style={{paddingRight:100}}>{ann.text}</span>
-            </div>
-          ):(<span>{ann.text}</span>)}
-        </div>
+        <AnnouncementBanner text={ann.text} colors={annC} />
       )}
 
       <header style={{padding:"14px 40px",borderBottom:`1px solid ${th.div}`,background:th.heroBg,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:200,gap:10,flexWrap:"wrap", opacity: corruptionLevel >= 9 ? 0.9 : 1, filter: corruptionLevel >= 11 ? `brightness(${0.9 - corruptionLevel * 0.01})` : 'none'}}>
@@ -2617,7 +2760,11 @@ export default function Vault() {
             <div style={{animation:"slidedown 0.3s cubic-bezier(0.22, 1, 0.36, 1)"}}>
               <div style={{background:th.card,border:th.bdr,padding:28,boxShadow:th.sh2,marginBottom:28}}>
                 <h2 style={{fontFamily:"'Anton',sans-serif",fontSize:20,fontWeight:400,letterSpacing:.3,color:th.blk,marginBottom:10}}>Secret Downloads</h2>
-                <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.85,marginBottom:20}}>Each secret can optionally reveal a hidden download when triggered.</p>
+                <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:th.mut,lineHeight:1.85,marginBottom:12}}>Each secret can optionally reveal a hidden download when triggered.</p>
+                <p style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.mut,lineHeight:1.85,marginBottom:20,opacity:.8}}>
+                  The &ldquo;how to trigger&rdquo; lines below are loaded from the server for admins only and are
+                  no longer part of the page visitors download. Don&rsquo;t paste them anywhere public.
+                </p>
                 <div style={{display:"flex",alignItems:"center",gap:5,paddingTop:16,borderTop:`1px solid ${th.div}`,flexWrap:"wrap"}}>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:th.mut,marginRight:4}}>found on this device:</span>
                   {Array.from({length:20},(_,i)=>i+1).map(n=>{
@@ -2642,7 +2789,9 @@ export default function Vault() {
                           </div>
                           <div style={{background:th.bg,border:`1px solid ${th.div}`,padding:"10px 14px"}}>
                             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:th.mut,letterSpacing:2,marginBottom:5}}>HOW TO TRIGGER</div>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:th.blk,lineHeight:1.75}}>{sl.howto}</div>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:howtoErr?"#f43f5e":th.blk,lineHeight:1.75,opacity:secretHowto?1:.55}}>
+                              {secretHowto?.[idx] || howtoErr || "loading the answer key…"}
+                            </div>
                           </div>
                         </div>
                         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
