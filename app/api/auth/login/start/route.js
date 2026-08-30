@@ -10,15 +10,10 @@ import { generateLoginCode, hashLoginCode, CODE_LENGTH } from "@/lib/login_code"
 //   -> { mfaRequired: "email", ticket }      a code was emailed; call /verify
 //   -> { mfaRequired: "totp", session }      app factor: finish with supabase.auth.mfa
 //
-// Why the password check happens here rather than in the browser: for accounts
-// using the email code, the session must NOT reach the client until the code is
-// confirmed. So it is created here, parked in login_codes, and only handed over
-// by the verify route.
-//
-// This is not airtight and shouldn't be sold as such — Supabase's own password
-// endpoint remains reachable from anywhere, so someone with the password can
-// still get a session directly without a code. The authenticator-app factor is
-// the one the auth server itself enforces.
+// The password check runs server-side so that, for email-code accounts, the
+// session is parked in login_codes and only handed over by /verify.
+// Not airtight: Supabase's own password endpoint stays reachable, so a password
+// alone still yields a session. Only the TOTP factor is enforced by the auth server.
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,15 +22,7 @@ const fromEmail = process.env.RESEND_FROM_EMAIL;
 
 const CODE_TTL_MIN = 10;
 
-/**
- * One place to fail from.
- *
- * The old catch-all answered every unexpected problem with a bare
- * "Sign-in failed" and threw the cause away, which made a broken login
- * impossible to diagnose from the browser — every different fault looked
- * identical. The real message and the stage it happened in now come back with
- * the response and go to the server log.
- */
+/** One place to fail from; the cause and the stage go to the caller and the log. */
 function failed(stage, err, status = 500) {
   const detail = err?.message || String(err || "unknown error");
   console.error(`[login/start] failed at ${stage}:`, err);
@@ -64,7 +51,7 @@ export async function POST(req) {
     return failed("server-config", e, 503);
   }
 
-  // ---- an email or a username, same as the site has always accepted --------
+  // identifier may be an email or a username
   let email = String(identifier).trim();
   if (!email.includes("@")) {
     try {
@@ -85,10 +72,8 @@ export async function POST(req) {
     }
   }
 
-  // ---- verify the password without keeping a session on the server --------
-  // Each attempt gets its own throwaway client with its own storage key, so
-  // repeated sign-ins in one server process can never queue behind (or inherit
-  // state from) an earlier one.
+  // Password check with no session kept on the server. Each attempt gets its own
+  // throwaway client and storage key, so concurrent sign-ins cannot share state.
   let signIn;
   try {
     const anon = getEphemeralAnonClient();
@@ -106,10 +91,8 @@ export async function POST(req) {
   const userId = signIn.user?.id;
   if (!userId) return failed("password-check", new Error("No user on the session"));
 
-  // ---- which second factor does this account use? -------------------------
-  // Neither lookup may take the whole sign-in down with it: a missing profile
-  // row or a hiccup on the admin API used to surface as "Sign-in failed" and
-  // lock the account out of the site entirely. Both default to "no factor".
+  // Which second factor? Neither lookup may fail the sign-in; both default to
+  // no factor, so a missing profile row cannot lock the account out.
   let emailTwoFa = false;
   try {
     const { data: profile } = await svc
@@ -136,7 +119,7 @@ export async function POST(req) {
     return NextResponse.json({ session: signIn.session });
   }
 
-  // ---- email code path: park the session, send the code -------------------
+  // Email code path: park the session, send the code.
   if (!resendKey || !fromEmail) {
     return NextResponse.json({
       error: "Email 2FA is on for this account but email sending isn't configured "
@@ -147,16 +130,12 @@ export async function POST(req) {
 
   let ticket;
   try {
-    // NOTE: a supabase query builder is only a *thenable* — it has `.then` but
-    // no `.catch`. `svc.rpc(...).catch(() => {})` therefore threw
-    // "…catch is not a function" on every single email-code sign-in, which the
-    // old catch-all reported as the bare "Sign-in failed". Errors from these
-    // two housekeeping calls are returned, not thrown, so they are simply read.
+    // A supabase query builder is a thenable with no `.catch`; errors from these
+    // two housekeeping calls are returned, not thrown, so read them instead.
     const { error: purgeErr } = await svc.rpc("purge_expired_login_codes");
     if (purgeErr) console.error("[login/start] purge failed (ignored):", purgeErr);
 
-    // Anything still pending for this account is dead the moment a new sign-in
-    // starts. Leaving the old rows behind piles up live tokens for no reason.
+    // Any code still pending for this account is dead once a new sign-in starts.
     const { error: sweepErr } = await svc.from("login_codes").delete().eq("user_id", userId);
     if (sweepErr) console.error("[login/start] sweep failed (ignored):", sweepErr);
 

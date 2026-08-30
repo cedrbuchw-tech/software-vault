@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/vault_client";
 
-// GET /api/catalog
-// Public, read-only list of every published program — what the VaultLaunch
-// launcher (and the mobile app) calls to show the store. Mirrors the camelCase
-// shape the website uses.
+// GET /api/catalog (public) -> { programs }
+// Read-only store listing for the VaultLaunch launcher and the mobile app, in
+// the same camelCase shape the website uses.
 
 const SUPABASE_ENABLED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 

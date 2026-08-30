@@ -3,9 +3,8 @@ import { requireUser } from "@/lib/api_auth";
 
 // POST /api/auth/email2fa   body { enabled: boolean }   -> { enabled }
 //
-// Turns the email-code factor on or off for the CALLER. The column itself is
-// not writable by users (see MIGRATION_EMAIL_2FA.sql), so this route with the
-// service role is the only way to change it.
+// Toggles the email-code factor for the caller. Users cannot write the column
+// directly (MIGRATION_EMAIL_2FA.sql), so this service-role route is the only way.
 
 export async function POST(req) {
   const auth = await requireUser(req);
@@ -16,8 +15,7 @@ export async function POST(req) {
     const value = !!enabled;
 
     if (value && !process.env.RESEND_FROM_EMAIL) {
-      // refuse rather than locking someone out of an account whose codes could
-      // never be delivered
+      // refuse, or the account locks itself out behind codes it cannot receive
       return NextResponse.json({
         error: "Email sending isn't configured, so email codes can't be turned on.",
         info: "resend_from_missing",

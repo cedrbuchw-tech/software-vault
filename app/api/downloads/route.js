@@ -3,14 +3,12 @@ import { getServiceClient } from "@/lib/vault_client";
 
 // POST /api/downloads   body { programId }   -> { ok: true, dl: <new count> }
 //
-// Registers ONE completed download. Public on purpose: the website calls it when
-// a visitor clicks Download, and the VaultLaunch launcher calls it once a file
-// has finished downloading. Its whole surface is "add 1 to one counter", so it
-// can be open without handing anyone write access to the catalog.
+// Registers one completed download, called by the website and by VaultLaunch.
+// Public on purpose: the whole surface is "add 1 to one counter", so it needs no
+// catalog write access.
 //
-// Prefers the atomic SQL function from MIGRATION_DOWNLOAD_COUNTER.sql. If that
-// migration hasn't been run yet it falls back to read-then-write so nothing
-// breaks — just run the migration to make it race-proof.
+// Prefers the atomic SQL function from MIGRATION_DOWNLOAD_COUNTER.sql; without
+// that migration it falls back to read-then-write, which is not race-proof.
 
 const SUPABASE_ENABLED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 

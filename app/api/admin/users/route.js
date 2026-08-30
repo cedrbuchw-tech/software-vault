@@ -3,23 +3,16 @@ import { requireAdmin, isOwnerEmail, rateLimit, clientKey, tooMany } from "@/lib
 
 // Admin-only user management.
 //
-//   GET  /api/admin/users?q=…      → { users: [{ id, email, username, isAdmin, owner }] }
-//   POST /api/admin/users          body { userId, isAdmin } → { ok, user }
+//   GET  /api/admin/users?q=…      -> { users: [{ id, email, username, isAdmin, owner }] }
+//   POST /api/admin/users          body { userId, isAdmin } -> { ok, user }
 //
-// Admin rights are the `is_admin` column on profiles; every other route in the
-// project already reads it, so flipping it here is all that is needed for
-// someone to see the admin panel the next time they sign in.
-//
-// Guards, in order of how easy they are to trip over:
-//   * only an admin may call this at all
-//   * nobody can take their own rights away (that is how you lock yourself out)
-//   * an address listed in ADMIN_EMAILS cannot be demoted
-//   * the last remaining admin cannot be demoted
+// Admin rights are the `is_admin` column on profiles. Demotion guards: not
+// yourself, not an ADMIN_EMAILS address, not the last remaining admin.
 
 const PAGE_SIZE = 200;
 const MAX_PAGES = 5;          // 1000 accounts is plenty for this site
 
-/** Walk the admin user list, because one page rarely covers everyone. */
+/** Page through the admin user list; one page rarely covers everyone. */
 async function listAllUsers(svc) {
   const all = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
@@ -53,8 +46,7 @@ export async function GET(req) {
     const { users, truncated } = await listAllUsers(auth.svc);
     const ids = users.map((u) => u.id);
 
-    // fetched in chunks — a thousand ids in one `in(…)` makes a URL long enough
-    // for PostgREST to refuse it
+    // Chunked: a thousand ids in one `in(…)` makes a URL PostgREST refuses.
     const byId = new Map();
     for (let i = 0; i < ids.length; i += 100) {
       const { data, error } = await auth.svc
@@ -68,7 +60,7 @@ export async function GET(req) {
       rows = rows.filter((r) =>
         r.email.toLowerCase().includes(q) || r.username.toLowerCase().includes(q));
     }
-    // admins first, then alphabetically — the list is here to be scanned
+    // admins first, then alphabetical
     rows.sort((a, b) =>
       (b.isAdmin - a.isAdmin) || (a.username || a.email).localeCompare(b.username || b.email));
 
@@ -118,9 +110,8 @@ export async function POST(req) {
       }
     }
 
-    // The row is created by a trigger on sign-up, but an account from before
-    // that trigger existed may have none — so update, and insert if nothing was
-    // there to update.
+    // The sign-up trigger creates the profile row, but older accounts may have
+    // none, so insert when the update matches nothing.
     const { data: rows, error: upErr } = await auth.svc
       .from("profiles").update({ is_admin: isAdmin }).eq("id", userId).select("id");
     if (upErr) throw upErr;

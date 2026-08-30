@@ -1,15 +1,7 @@
 "use client";
 
-// app/reset-password/page.jsx — the page a password-reset mail opens.
-// ---------------------------------------------------------------------------
-// Before this existed the mail pointed at the homepage and hoped a modal would
-// notice why you had arrived. It usually didn't: supabase-js consumed the
-// `#access_token=…&type=recovery` fragment and rewrote the address bar before
-// anything could read it, so the link just dropped you on the front page with
-// no way to choose a new password.
-//
-// This page reads the link itself — every shape Supabase can send — and shows
-// nothing but the reset form.
+// Landing page for password-reset mails. It reads the link itself, in every
+// shape Supabase can send, and shows nothing but the reset form.
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/vault_client";
@@ -103,8 +95,8 @@ export default function ResetPasswordPage() {
 
         cleanUrl();
 
-        // Either the link just created a session, or one was already open —
-        // both mean this browser is allowed to set a new password.
+        // A session here means the link just created one, or one was already open;
+        // either way this browser may set a new password.
         const { data } = await supabase.auth.getSession();
         if (!data?.session) {
           setErr("This reset link is no longer valid. Request a new one below.");
@@ -182,7 +174,7 @@ export default function ResetPasswordPage() {
       <div style={{ width: "min(400px,94vw)", background: th.card, border: th.bdr,
                     boxShadow: th.shd, padding: 30 }}>
 
-        {/* the same mark the site header uses, so this is obviously SoftwareVault */}
+        {/* the same mark the site header uses */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
           <svg width="34" height="34" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <circle cx="16" cy="16" r="14.5" stroke="var(--sv-accent)" strokeWidth="2.5" opacity="0.9" />

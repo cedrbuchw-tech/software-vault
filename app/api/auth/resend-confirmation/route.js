@@ -9,25 +9,20 @@ const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@resend.dev";
 
 export async function POST(req) {
 
-  // Supabase already sends its own confirmation mail on signUp. Sending a second
-  // one from here means every new account gets TWO emails. Off by default; set
-  // CUSTOM_CONFIRMATION_EMAIL=1 only if you would rather send it yourself than
-  // point Supabase's SMTP at Resend.
+  // Supabase already sends its own confirmation mail on signUp, so this one
+  // would be a second. Off unless CUSTOM_CONFIRMATION_EMAIL=1.
   if (process.env.CUSTOM_CONFIRMATION_EMAIL !== '1') {
     return NextResponse.json({ ok: true, info: 'handled_by_supabase' });
   }
-  // public by necessity (used before sign-in), so throttle abuse:
-  // mail bombing and username enumeration both start here.
+  // Public (used before sign-in): throttle mail bombing and enumeration.
   if (!rateLimit("confirm:" + clientKey(req), 3, 300000)) return tooMany();
   try {
     if (!resend) {
       return NextResponse.json({ ok: false, error: "Email service not configured", info: "resend_missing" }, { status: 500 });
     }
 
-    // Without a verified sender we would fall back to noreply@resend.dev — a
-    // domain this project does not own, which Resend refuses to send from. That
-    // failure is invisible to the user (the mail simply never arrives), so say
-    // plainly what is missing instead. See RESEND_NAMECHEAP_SETUP.md.
+    // The fallback sender is a domain this project does not own; Resend refuses
+    // it and the mail silently never arrives. See RESEND_NAMECHEAP_SETUP.md.
     if (!process.env.RESEND_FROM_EMAIL) {
       return NextResponse.json({
         ok: false,
@@ -50,14 +45,11 @@ export async function POST(req) {
 
     if (error || !data?.properties?.action_link) {
       console.error("Supabase generateLink error:", error, data);
-      // If the email already exists in Supabase, return a clear info code so the UI can
-      // offer the user to sign in or reset their password instead of showing a server error.
+      // Existing address: return an info code so the UI can offer sign-in or reset.
       const isEmailExists = error?.status === 422 || error?.code === 'email_exists' || (error?.message || '').toLowerCase().includes('already been registered') || (error?.message || '').toLowerCase().includes('email_exists');
       if (isEmailExists) {
-          // Try to generate a recovery link and send a password reset email instead
           try {
-            // a recovery link belongs on the page that can actually take a new
-            // password, not on whatever page happened to send this request
+            // a recovery link must land on the page that can take a new password
             const resetTarget = redirectTo
               ? `${String(redirectTo).replace(/\/+$/, "")}/reset-password`
               : undefined;

@@ -2,23 +2,17 @@ import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/vault_client";
 import { requireAdmin } from "@/lib/api_auth";
 
-// Site settings — the announcement banner, the support/donation block, the hero
+// Site settings: the announcement banner, the support/donation block, the hero
 // subtitle and the secret-download config.
 //
-//   GET  /api/settings            public  → { settings }
-//   POST /api/settings   (admin)          → { ok }
+//   GET  /api/settings            public  -> { settings }
+//   POST /api/settings   (admin)          -> { ok }
 //
-// Why this route had to exist: saveSett() wrote the whole settings object to
-// IndexedDB and nowhere else. IndexedDB is per-browser, so a banner published
-// from the admin panel existed only in the admin's own browser and could not
-// reach a single visitor. Everything is stored as one JSON blob under a single
-// key in the existing `settings` table.
+// Stored as one JSON blob under a single key in the `settings` table.
 //
-// NOTE ON SECRETS: the response includes secretDownloads, links and all,
-// because the site needs them client-side to reveal a reward. Anyone who reads
-// this endpoint directly can therefore see the secret rewards without earning
-// them. That was already true — the whole secrets system is client-side and
-// found-state lives in localStorage — but it is worth knowing.
+// The public response includes secretDownloads and their links, because the site
+// reveals rewards client-side, so anyone reading this endpoint sees them without
+// earning them.
 
 const KEY = "site_settings";
 
@@ -37,8 +31,7 @@ export async function GET() {
     return NextResponse.json({ settings });
   } catch (err) {
     console.error("settings GET error:", err);
-    // Never fail the whole page over settings — the site is perfectly usable
-    // with none, and the client falls back to its own copy.
+    // Never fail the whole page over settings; the client falls back to its copy.
     return NextResponse.json({ settings: null, error: err.message || "Failed" }, { status: 200 });
   }
 }
@@ -54,7 +47,7 @@ export async function POST(req) {
     }
 
     const value = JSON.stringify(settings);
-    // the column is TEXT; a runaway blob belongs nowhere near it
+    // the column is TEXT; keep a runaway blob out of it
     if (value.length > 512_000) {
       return NextResponse.json({ error: "Settings are too large to store." }, { status: 413 });
     }

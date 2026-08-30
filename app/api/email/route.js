@@ -4,13 +4,9 @@ import { requireUser, rateLimit, clientKey, tooMany } from "@/lib/api_auth";
 
 // POST /api/email   body { otp }   -> sends a code to the CALLER's own address
 //
-// This was an open mail relay: it accepted `{ email, otp }` from anyone and had
-// Resend deliver a "Your 2FA Code" message, from this project's verified domain,
-// to any address on the internet with attacker-chosen text in the code field —
-// ideal for phishing, and a fast way to get the sending domain blacklisted.
-//
-// It now requires a signed-in caller and always sends to that account's own
-// address; the recipient can no longer be chosen by the request.
+// Requires a signed-in caller and always sends to that account's own address.
+// The recipient must never become a request parameter; that turns this into an
+// open relay on a verified sending domain.
 
 const resendKey = process.env.RESEND_API_KEY;
 const resend = resendKey ? new Resend(resendKey) : null;
@@ -33,7 +29,7 @@ export async function POST(req) {
     }
 
     const { otp } = await req.json().catch(() => ({}));
-    // only a six digit code is ever echoed back into the message body
+    // only digits are ever echoed back into the message body
     const code = String(otp || "").trim();
     if (!/^\d{4,8}$/.test(code)) {
       return NextResponse.json({ error: "Invalid code" }, { status: 400 });

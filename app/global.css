@@ -5,18 +5,8 @@ body { margin: 0; }
 html[class*="corrupt-lvl-"] {
 	transition: filter .35s ease, transform .35s ease;
 }
-/* ── Corruption ladder ─────────────────────────────────────────────────────
-   Twelve stages. Each stage sets nothing but tokens; the rules underneath turn
-   those tokens into pixels, so retuning the whole progression means editing one
-   column of numbers rather than twelve filter strings.
-
-   What changed and why: every stage used to lean on hue-rotate, up to 220deg at
-   the top. That does not read as a glitch — it just repaints the site in
-   arbitrary colours, and the brand orange ended up green. Corruption is a
-   BROKEN SIGNAL, so it is built from the things a broken signal actually does:
-   the colour channels drift apart, scanlines and noise crawl over the picture,
-   and every so often the whole frame tears sideways for two frames. Hue is left
-   almost alone, so the site still looks like itself while it falls apart. */
+/* Corruption ladder: twelve stages that set tokens only; the rules below turn
+   those tokens into pixels. Hue barely moves, so the site still looks like itself. */
 
 html[class*="corrupt-lvl-"] {
 	--cr-split: 0px;      /* how far the red/cyan channels separate */
@@ -40,17 +30,15 @@ html.corrupt-lvl-10 { --cr-split:3.3px; --cr-scan:.44; --cr-contrast:1.26; --cr-
 html.corrupt-lvl-11 { --cr-split:3.8px; --cr-scan:.50; --cr-contrast:1.30; --cr-hue:14deg; --cr-burst:2.8s; --cr-blur:.24px; }
 html.corrupt-lvl-12 { --cr-split:4.4px; --cr-scan:.58; --cr-contrast:1.35; --cr-hue:-16deg;--cr-burst:2.2s; --cr-blur:.3px; }
 
-/* The picture itself: contrast and a whisper of hue. Nothing violent — the
-   violence lives in the channel split and the tearing. */
+/* The picture itself: contrast and a little hue drift. */
 html[class*="corrupt-lvl-"] #sv-root {
 	filter: contrast(var(--cr-contrast)) hue-rotate(var(--cr-hue)) blur(var(--cr-blur));
 	transition: filter .45s ease;
 	will-change: filter, transform;
 }
 
-/* The tear. Ninety-odd percent of the cycle is perfectly still, then the frame
-   rips sideways for a few frames and recovers — which is what sells it. A
-   permanent skew just looks like a broken stylesheet. */
+/* Most of the cycle is perfectly still; the frame only rips sideways for a few
+   frames. A permanent skew just reads as a broken stylesheet. */
 @keyframes sv-tear {
 	0%, 90%, 100% { transform: none; }
 	91%  { transform: translate3d(-3px, 0, 0) skewX(.7deg); }
@@ -65,9 +53,8 @@ html.corrupt-lvl-12 #sv-root {
 	animation: sv-tear var(--cr-burst) steps(1) infinite;
 }
 
-/* Chromatic aberration, on text only. Doing it to the whole page needs a
-   filter chain heavy enough to drop frames on a laptop; headings carry the
-   effect on their own and cost nothing. */
+/* Chromatic aberration on text only: applying it to the whole page needs a
+   filter chain heavy enough to drop frames on a laptop. */
 html[class*="corrupt-lvl-"] .hero-title,
 html[class*="corrupt-lvl-"] h1,
 html[class*="corrupt-lvl-"] h2,
@@ -78,8 +65,7 @@ html[class*="corrupt-lvl-"] .program-card h2 {
 	transition: text-shadow .45s ease;
 }
 
-/* Scanlines and noise, present from the first secret and climbing. Previously
-   this appeared out of nowhere at level 9 and sat at a fixed opacity. */
+/* Scanlines and noise, present from the first secret and climbing. */
 html[class*="corrupt-lvl-"] body::before {
 	content: "";
 	position: fixed;
@@ -231,7 +217,6 @@ html.secret-9 .theme-toggle {
 	to { opacity: 0; transform: scale(.98) translateY(4px); }
 }
 
-/* Smooth transitions for all interactive elements */
 button, input, textarea, select {
 	transition: all .15s ease;
 }
@@ -241,7 +226,7 @@ button, input, textarea, select {
 	transition: all .2s ease;
 }
 
-/* Button animations for interactive feedback */
+/* Button press feedback */
 .btn-animated {
 	transition: filter 0.1s ease, transform 0.1s ease;
 }
@@ -384,7 +369,7 @@ html.corrupt-lvl-10 input {
 	to { opacity: 1; transform: translateY(0); }
 }
 
-/* High corruption effects - UI breaking */
+/* High corruption: UI breaking */
 html.corrupt-lvl-7 header,
 html.corrupt-lvl-8 header,
 html.corrupt-lvl-9 header,
@@ -465,12 +450,8 @@ html.corrupt-lvl-12 #sv-root {
 	100% { transform: none; }
 }
 
-/* Party mode: hue-rotate the page.
-   Only #sv-root — NEVER body. A CSS filter makes the filtered element the
-   containing block for every `position: fixed` descendant, and dialogs are
-   portalled into <body>. Animating body therefore anchored them to the body box
-   instead of the viewport, so they slid down by the scroll offset the moment
-   party mode came on. */
+/* Party mode filters #sv-root, never body: a filtered element becomes the
+   containing block for its position:fixed descendants, and dialogs portal into <body>. */
 html.party-active #sv-root {
     animation: partyShift .65s linear infinite;
 }
@@ -479,16 +460,15 @@ html.party-active #sv-root {
     0% { filter: hue-rotate(0deg) saturate(1.6); }
     100% { filter: hue-rotate(360deg) saturate(1.6); }
 }
-/* ── Appearance settings (lib/appearance.js) ─────────────────────────────── */
-/* Applied as data attributes on <html>, so a choice takes effect everywhere
-   without every component having to know about it. */
+/* Appearance settings (lib/appearance.js) */
+/* Applied as data attributes on <html>, so a choice takes effect everywhere. */
 
 :root {
     --sv-accent: #e03d0c;
     --sv-radius: 0px;
 }
 
-/* Corner style — the setting that previously did nothing at all. */
+/* Corner style */
 html[data-corners="smooth"] {
     --sv-radius: 10px;
 }
@@ -499,21 +479,18 @@ html[data-corners="smooth"] select,
 html[data-corners="smooth"] textarea,
 html[data-corners="smooth"] .program-card {
     border-radius: var(--sv-radius);
-    /* clip the cover image instead of rounding the <img> itself — a
-       rounded image on a dark card leaves black corners showing */
+    /* Clip the cover image; rounding the <img> itself leaves black
+       corners showing on a dark card. */
     overflow: hidden;
 }
 
-/* Text size.
-   The page sets font sizes in fixed pixels inside the elements themselves, so
-   changing the root font-size does nothing. `zoom` scales those too, and unlike
-   `transform: scale()` it does not turn the page into a containing block for
-   fixed-position dialogs. */
+/* Font sizes are hard-coded in px, so root font-size does nothing. `zoom` scales
+   them and, unlike transform: scale(), creates no containing block. */
 html[data-text="small"] body { zoom: 0.9; }
 html[data-text="normal"] body { zoom: 1; }
 html[data-text="large"] body { zoom: 1.15; }
 
-/* Density — trims the roomy paddings the layout uses. */
+/* Density: trims the roomy paddings the layout uses. */
 html[data-density="compact"] .program-card { padding: 10px !important; }
 html[data-density="compact"] main { padding-top: 10px !important; padding-bottom: 10px !important; }
 html[data-density="compact"] section { margin-bottom: 14px !important; }
@@ -521,7 +498,7 @@ html[data-density="compact"] header { padding-top: 8px !important; padding-botto
 html[data-density="compact"] h1 { margin-bottom: 8px !important; }
 html[data-density="compact"] p { margin-top: 4px !important; margin-bottom: 4px !important; }
 
-/* Reduced motion — also honours the operating system setting below. */
+/* Reduced motion; the operating system setting is honoured below as well. */
 html[data-motion="reduced"] *,
 html[data-motion="reduced"] *::before,
 html[data-motion="reduced"] *::after {
@@ -539,10 +516,8 @@ html[data-motion="reduced"] *::after {
     }
 }
 
-/* Rounded corners must include the dropdown arrow.
-   A native <select> draws its own square arrow button, which kept a hard corner
-   sticking out of an otherwise rounded control. Replacing the native appearance
-   with our own arrow makes the whole control follow the radius. */
+/* A native <select> draws its own square arrow button, which leaves a hard
+   corner on a rounded control; replacing the appearance makes the radius apply. */
 html[data-corners="smooth"] select {
     -webkit-appearance: none;
     -moz-appearance: none;
@@ -553,7 +528,7 @@ html[data-corners="smooth"] select {
     background-position: right 10px center;
 }
 
-/* Same for anything that expands on hover — keep the radius on every corner. */
+/* Keep the radius on hover and focus too. */
 html[data-corners="smooth"] select,
 html[data-corners="smooth"] select:hover,
 html[data-corners="smooth"] select:focus {
@@ -561,14 +536,14 @@ html[data-corners="smooth"] select:focus {
     overflow: hidden;
 }
 
-/* Font choice. The page hard-codes IBM Plex Mono in inline styles, so this has
-   to override them — the one place !important is genuinely warranted. */
+/* The page hard-codes IBM Plex Mono in inline styles, so overriding it needs
+   !important. */
 html[data-font="sans"] body,
 html[data-font="sans"] body * {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
 }
 
-/* Higher contrast for readability: lift the muted greys and thicken borders. */
+/* Higher contrast: lift the muted greys. */
 html[data-contrast="high"] p,
 html[data-contrast="high"] span,
 html[data-contrast="high"] div {
@@ -578,8 +553,7 @@ html[data-contrast="high"] body {
     text-shadow: none;
 }
 
-/* Let people switch off the corruption/glitch visuals entirely — some find the
-   shaking and colour shifts unpleasant, and it also makes text hard to read. */
+/* Let people switch the corruption visuals off entirely. */
 html[data-glitch="off"] #sv-root {
     filter: none !important;
     transform: none !important;
@@ -589,10 +563,8 @@ html[data-glitch="off"] .glitchy {
     animation: none !important;
 }
 
-/* Sans-serif needs different vertical room.
-   The headings are sized for a condensed display face; swapping in a system
-   sans keeps the fixed line-height and clips the descenders (the "g" and "y"
-   in "and give away"). Give those lines room and let them breathe. */
+/* Headings are sized for a condensed display face; a system sans clips its
+   descenders at the fixed line-height, so give those lines more room. */
 html[data-font="sans"] .hero-title,
 html[data-font="sans"] h1,
 html[data-font="sans"] h2 {
@@ -614,55 +586,44 @@ html[data-font="sans"] body {
     object-fit: cover;
 }
 
-/* ── Hero descenders ───────────────────────────────────────────────────────
-   Each hero line sits in an overflow:hidden box so the reveal animation can
-   slide up into it, and the <h1> uses line-height: 1 — which leaves exactly
-   zero room below the baseline. Anton's descenders are shallow enough to get
-   away with it; a generic sans-serif's are not, so with the Sans typeface
-   setting the "g" in "and give away." was being sliced off at the ground.
-
-   Pad the clipping box downwards and pull the same amount back as negative
-   margin: the descender gets its room, and nothing below the title moves. */
+/* Hero lines sit in an overflow:hidden box with line-height: 1, so there is no
+   room below the baseline. Pad down, pull the same amount back as margin. */
 .hero-title .hero-line {
 	padding-bottom: 0.16em;
 	margin-bottom: -0.16em;
 }
 
-/* ── Full-screen overlays ──────────────────────────────────────────────────
-   Every dialog and secret panel is rendered into <body> through <Portal>, not
-   into #sv-root. That is not a style choice — #sv-root carries a CSS filter at
-   every corruption level, an animated transform from level 6, and
-   overflow:hidden. Any one of those makes it the containing block for its
-   position:fixed descendants, so an overlay inside it was being sized and
-   centred against the whole DOCUMENT instead of the viewport (hence having to
-   scroll to find it) and then clipped by the root's overflow (hence sometimes
-   not being able to reach it at all). Out at <body> level, fixed means fixed.
-
-   The rules below are the second half: a panel taller than the window has to be
-   able to scroll on its own. Capping the panel rather than scrolling the
-   overlay avoids the flexbox centring trap, where an over-tall centred child
-   has its top pushed out of reach where no scrollbar can get to it. */
+/* Dialogs render into <body> through <Portal>, not #sv-root: a filter, transform
+   or overflow:hidden there makes it the containing block for position:fixed. */
+/* Cap the panel height rather than scrolling the overlay: an over-tall centred
+   flex child has its top pushed out of reach of any scrollbar. */
 .sv-overlay {
+	/* overflow-x must be set explicitly: one axis visible + the other not is
+	   invalid, so the browser promotes visible to auto and you get a stray
+	   horizontal scrollbar. */
+	overflow-x: hidden;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 }
 .sv-overlay > * {
 	max-height: calc(100vh - 40px);
 	max-height: calc(100dvh - 40px);   /* dodges mobile browser chrome */
+	overflow-x: hidden;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	-webkit-overflow-scrolling: touch;
 }
 
-/* ── Phones and small tablets ──────────────────────────────────────────────
-   The layout is written in inline styles, which no stylesheet can outrank
-   without !important — so these overrides use it deliberately, and only for
-   the handful of things that hard-code desktop dimensions.
+/* The loading screen borrows .sv-overlay for centring but is not a dialog: opt
+   it out of the panel scroll boxes and the height cap. */
+.sv-splash,
+.sv-splash > * {
+	overflow: hidden !important;
+	max-height: none !important;
+}
 
-   The real fix for "cramped" is the viewport export in app/layout.jsx; this
-   block is what makes the result actually fit once the phone stops pretending
-   to be 980px wide. Selectors match on inline style fragments (e.g. the grid
-   template, the animation name) because these elements carry no classes. */
+/* Phones and small tablets. The layout is written in inline styles, so these
+   overrides need !important and match on inline style fragments. */
 
 html { -webkit-text-size-adjust: 100%; }
 img, video, canvas, svg { max-width: 100%; }
@@ -683,20 +644,18 @@ img, video, canvas, svg { max-width: 100%; }
 	/* the hero floor of 44px is most of a phone's width on its own */
 	.hero-title { font-size: clamp(30px, 9.5vw, 84px) !important; }
 
-	/* one program per row; the 270px minimum forced a sideways scroll */
+	/* one program per row; a 270px minimum forces a sideways scroll */
 	[style*="minmax(270px"] { grid-template-columns: 1fr !important; }
 	/* admin stat tiles: two up rather than one long column */
 	[style*="minmax(160px"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 	/* every side-by-side admin form field stacks */
 	[style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
 
-	/* The banner works out for itself whether it needs to scroll, by measuring
-	   its own text against its own width (see AnnouncementBanner). Forcing
-	   white-space or killing the animation from here fought with that decision,
-	   so all this does now is trim the gutters. */
+	/* AnnouncementBanner measures its own text and decides for itself whether to
+	   scroll, so only trim the gutters here. */
 	.sv-ann { padding: 10px 16px !important; font-size: 11px !important; }
 
-	/* four admin tabs at 22px padding do not fit — let the row scroll */
+	/* four admin tabs at 22px padding do not fit, so let the row scroll */
 	.sv-admin-tabs {
 		overflow-x: auto;
 		flex-wrap: nowrap !important;
@@ -709,12 +668,8 @@ img, video, canvas, svg { max-width: 100%; }
 	/* dialogs: use the width that exists */
 	.sv-overlay { padding: 12px !important; }
 
-	/* ── Filter buttons ────────────────────────────────────────────────────
-	   Two things made this row look broken on a phone. The chips carry a 4px
-	   offset drop-shadow, which at this scale reads as a second, misaligned
-	   copy of the button rather than depth. And each chip has its own
-	   margin-bottom: 8 ON TOP of the row's gap: 8, so the vertical gaps were
-	   double the horizontal ones and the rows drifted apart. */
+	/* Filter chips: the 4px offset drop-shadow reads as a misaligned copy at this
+	   size, and each chip's margin-bottom doubles the row's gap. */
 	.sv-filters { padding: 20px 16px 0 !important; }
 	.sv-filters button {
 		margin-bottom: 0 !important;
@@ -724,8 +679,7 @@ img, video, canvas, svg { max-width: 100%; }
 	:root[data-theme="light"] .sv-filters button { box-shadow: 2px 2px 0 #111 !important; }
 	:root[data-theme="dark"]  .sv-filters button { box-shadow: 2px 2px 0 #444 !important; }
 
-	/* two 180px-minimum buttons side by side do not fit; stacking them full
-	   width looks deliberate instead of wrapped-by-accident */
+	/* two 180px-minimum buttons do not fit side by side, so stack them full width */
 	.sv-corruption { gap: 8px !important; }
 	.sv-corruption > button {
 		flex: 1 1 100% !important;
@@ -735,7 +689,7 @@ img, video, canvas, svg { max-width: 100%; }
 	}
 }
 
-/* Very narrow — small phones in portrait. */
+/* Very narrow: small phones in portrait. */
 @media (max-width: 400px) {
 	#sv-root > header,
 	#sv-root main,

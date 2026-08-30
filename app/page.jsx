@@ -3,12 +3,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { AuthButton, useAuth, fetchMyLikes, setLike, openAuthModal, likeHint, fetchMyLibrary, setLibrary, libT } from "./auth";
 import { useBackdropClose, useScrollLock, Portal } from "@/lib/modal_ux";
-import { loadAppearance, applyAppearance } from "@/lib/appearance";
+import { loadAppearance, applyAppearance, saveAppearance, APPEARANCE_DEFAULTS } from "@/lib/appearance";
 import { resolveDownload, hostLabel } from "@/lib/download_target";
-// Used in six places below (every call that needs the caller's access token).
-// It was never imported, so each of those threw "supabase is not defined" at
-// runtime: the admin check, the admin-email save and the test-email button all
-// failed silently, and program saves went out with no Authorization header.
 import { supabase } from "@/lib/vault_client";
 
 const K = { admin:"vault_admin",progs:"vault_programs",likes:"vault_likes",
@@ -22,9 +18,8 @@ const BLANK = {name:"",desc:"",ver:"1.0",cat:"Tools",url:"",file:null,os:[],cove
 const LANGS = [{c:"en",l:"EN"},{c:"de",l:"DE"},{c:"es",l:"ES"},{c:"no",l:"NO"},
                {c:"pt",l:"PT"},{c:"ja",l:"JA"},{c:"zh",l:"ZH"},{c:"ru",l:"RU"}];
 const BLANK_DL = {name:"",desc:"",url:"",enabled:false};
-// Every downloadable build target, in one place. Both admin forms and the
-// per-OS download buttons iterate this, so a new platform is one entry here —
-// android covers Samsung/Galaxy handsets, ios covers iPhone and iPad.
+// Single source of truth for build targets; the admin forms and the per-OS
+// download buttons both iterate it.
 const OS_DL = [{id:"win",l:"Windows"},{id:"mac",l:"macOS"},{id:"lin",l:"Linux"},
                {id:"android",l:"Android"},{id:"ios",l:"iOS"}];
 const OS_DL_IDS = OS_DL.map(o=>o.id);
@@ -49,26 +44,9 @@ function DownloadButtons({prog,onDownload,loadingDl,th,tr,full}){
   );
 }
 
-// Two strings per secret, for two different readers:
-//
-//   trigger — its name, shown once you have it.
-//   hint    — what a hunter sees for the secret they have NOT found yet.
-//
-// A THIRD string used to live here: `howto`, the flat instruction, rendered
-// only in the admin panel. That was a mistake. This is a client component, so
-// every one of those twenty answers was compiled into the bundle and served to
-// every visitor — the admin-only check governed what was DISPLAYED, never what
-// was DELIVERED. Anyone who searched the bundle for "Konami" had the lot.
-// The answer key now lives in lib/secret_answers.js and comes back from
-// GET /api/admin/secrets, which refuses anyone who is not an admin. Do not put
-// it back in this file; see the note at the top of that module.
-//
-// The hints stay client-side on purpose. They are written to name the PLACE and
-// the KIND of gesture and to stop there — "the mark at the top was not made to
-// be pressed once" tells you where to go and that repetition matters, without
-// handing over the number — and the site shows them one at a time anyway.
-// Someone stuck should be able to act on one of these within a few seconds;
-// someone who wants to work it out alone should not feel it was solved for them.
+// trigger: the secret's name, shown once found. hint: shown for the next
+// unfound secret. The answer key lives in lib/secret_answers.js and is served
+// only to admins; it must never be imported into this client component.
 const SECRET_LABELS = [
   {trigger:"Broken Code Sequence",
    hint:"Contra. Gradius. A thousand cabinets besides. Eight directions on the arrow keys — and then, because everyone forgets this part, the two buttons."},
@@ -95,9 +73,8 @@ const SECRET_LABELS = [
   {trigger:"Vault Resonance",
    hint:"One card wears a star it did not earn. Press the star until the vault hums back — more times than seems reasonable."},
 
-  // ── 13–20 ────────────────────────────────────────────────────────────────
-  // Half of these are nods to things older than this website. A hint may point
-  // at the reference, never at the keystrokes.
+  // 13-20
+  // A hint may point at the reference, never at the keystrokes.
   {trigger:"Empty Shelf",
    hint:"The category buttons each tell you how many programs they hold. One of them proudly says zero. Open it anyway — nobody ever does."},
   {trigger:"Degreelessness Mode",
@@ -116,34 +93,16 @@ const SECRET_LABELS = [
    hint:"Everything else here rewards doing something. One thing rewards the exact opposite — and it is not impatient about it. Leave the page completely untouched, tab still open and in front of you, for half an hour. Go and do something else; it will keep."},
 ];
 
-/**
- * FNV-1a, 32-bit. Used to keep the two typed codes out of the bundle as words.
- *
- * `if (typed.includes("<the word>"))` reads perfectly well in minified
- * JavaScript — minifiers rename variables, never string literals — so anyone
- * who opened the bundle and searched for likely-looking short words found both
- * codes in about ten seconds. A checksum cannot be searched for by somebody who
- * does not already know the answer, and the only way back to the word is to
- * guess words and hash them, which is exactly what playing the game is.
- *
- * Be clear-eyed about what this is: a speed bump, not a lock. Anybody willing
- * to set a breakpoint on the keydown handler can still read the buffer as they
- * type. Nothing a browser has to evaluate can be kept from the person running
- * the browser; the point is only that idle curiosity no longer spoils the hunt.
- */
+/** FNV-1a, 32-bit. The typed codes are stored as checksums so the words are not
+ *  greppable in the bundle. A speed bump, not a lock: a breakpoint on the keydown
+ *  handler still reads the buffer. */
 const typedCode=(s)=>{
   let h=0x811c9dc5;
   for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; }
   return h;
 };
 
-/**
- * Secrets 13–20 all share one overlay.
- *
- * The first twelve each have their own hand-built panel, which is why adding to
- * them meant copying forty lines of JSX per secret. These are described as data
- * instead, so a new one costs a single entry.
- */
+/** Secrets 13-20 share one data-driven overlay, so a new one costs a single entry. */
 const SCENES = {
   13:{kicker:"EMPTY SHELF",       title:"NOTHING\nHERE.",    accent:"#7fdc9a", ink:"#dff7e6", panel:"#04120a", back:"#020905",
       body:"you opened a drawer the vault has never once put anything in.\nnobody else checks. the vault appreciates the thoroughness."},
@@ -163,7 +122,7 @@ const SCENES = {
       body:"half an hour. no mouse, no key, no scroll — the tab simply sat here.\nthe vault waited the whole time, and saved this for the moment you came back."},
 };
 
-/** One panel, driven by SCENES. RGB-split title, scanlines, no bespoke markup. */
+/** One panel, driven by SCENES. */
 function SecretScene({ n, scene, dl, next, foundCount }) {
   if (!scene) return null;
   const lines = scene.title.split("\n");
@@ -203,16 +162,8 @@ function SecretScene({ n, scene, dl, next, foundCount }) {
   );
 }
 
-/**
- * The forward-looking half of every secret overlay.
- *
- * Each overlay used to end with a hard-coded instruction, and every one of them
- * described a DIFFERENT secret than the one it belonged to — #11 told you to
- * press the featured star (that is #12) and #12 told you to right-click a card
- * (that is #11), so finishing the hunt pointed you back at something you had
- * already done. Driving it from the live "next unfound secret" instead means it
- * can never drift out of step, and it survives finding them out of order.
- */
+/** Forward-looking half of every secret overlay. Driven by the live next-unfound
+ *  secret, so it cannot drift and survives finding them out of order. */
 function NextUp({ next, foundCount, color, line, text }) {
   return (
     <div style={{ borderTop: `1px solid ${line}`, marginTop: 18, paddingTop: 14 }}>
@@ -276,7 +227,7 @@ const compressImage=(file,maxW,quality)=>new Promise(res=>{
 });
 
 const TR = {
-  en:{h1:["Software I build","and give away."],sub:"I made this website to upload all of my small projects that I have created out of boredom for people to download and use for free. If you like what I upload, you can send me a little donation at the bottom of the page.",
+  en:{h1:["Software I build","and give away."],sub:"I made this website to upload all of my small projects that I have created out of boredom for people to download and use for free.",
     progs:"programs",dls:"downloads",feat:"featured",search:"Search programs...",platform:"Platform:",
     clear:"clear",sn:"Newest first",sp:"Most downloaded",sa:"A → Z",fdiv:"★ featured",adiv:"everything",
     dl:"Download ↓",open:"Open ↗",dl_n:"downloads",lk:"likes",e1:"Nothing here yet — check back soon.",e2:"No results.",
@@ -302,7 +253,7 @@ const TR = {
     cov:"Cover image",scr:"Screenshots (up to 6)",cls:"Close",
     img_tip:"Images are compressed automatically. JPEG/PNG/WebP accepted.",
     loading:"Loading..."},
-  de:{h1:["Software, die ich baue","und verschenke."],sub:"Ich habe diese Website erstellt, um all meine kleinen Projekte hochzuladen.",
+  de:{h1:["Software, die ich baue","und verschenke."],sub:"Ich habe diese Website gemacht, um all meine kleinen Projekte hochzuladen, die aus Langeweile entstanden sind — damit sie jeder kostenlos herunterladen und benutzen kann.",
     progs:"Programme",dls:"Downloads",feat:"empfohlen",search:"Programme suchen...",platform:"Plattform:",
     clear:"löschen",sn:"Neueste zuerst",sp:"Meiste Downloads",sa:"A → Z",fdiv:"★ empfohlen",adiv:"alles",
     dl:"Herunterladen ↓",open:"Öffnen ↗",dl_n:"Downloads",lk:"Likes",e1:"Noch nichts hier.",e2:"Keine Ergebnisse.",
@@ -325,7 +276,7 @@ const TR = {
     ppadm:"Spenden",ppmsglbl:"Nachricht für Besucher",
     ss:"Site-Einstellungen",hsl:"Untertitel",cov:"Titelbild",
     scr:"Screenshots (bis zu 6)",cls:"Schließen",img_tip:"Bilder werden automatisch komprimiert.",loading:"Lädt..."},
-  es:{h1:["Software que creo","y comparto gratis."],sub:"Creé este sitio para subir todos mis pequeños proyectos.",
+  es:{h1:["Software que creo","y comparto gratis."],sub:"Creé este sitio web para subir todos los pequeños proyectos que he hecho por aburrimiento, para que cualquiera pueda descargarlos y usarlos gratis.",
     progs:"programas",dls:"descargas",feat:"destacados",search:"Buscar...",platform:"Plataforma:",
     clear:"borrar",sn:"Más recientes",sp:"Más descargados",sa:"A → Z",fdiv:"★ destacados",adiv:"todo",
     dl:"Descargar ↓",open:"Abrir ↗",dl_n:"descargas",lk:"me gusta",e1:"Nada todavía.",e2:"Sin resultados.",
@@ -348,7 +299,7 @@ const TR = {
     ppadm:"Donaciones",ppmsglbl:"Mensaje para visitantes",
     ss:"Ajustes",hsl:"Subtítulo del hero",cov:"Imagen de portada",
     scr:"Capturas (hasta 6)",cls:"Cerrar",img_tip:"Las imágenes se comprimen automáticamente.",loading:"Cargando..."},
-  no:{h1:["Programvare jeg lager","og gir bort gratis."],sub:"Jeg laget denne nettsiden for å laste opp alle mine små prosjekter.",
+  no:{h1:["Programvare jeg lager","og gir bort gratis."],sub:"Jeg laget denne nettsiden for å laste opp alle de små prosjektene jeg har laget av kjedsomhet, slik at hvem som helst kan laste dem ned og bruke dem gratis.",
     progs:"programmer",dls:"nedlastinger",feat:"fremhevet",search:"Søk...",platform:"Plattform:",
     clear:"fjern",sn:"Nyeste først",sp:"Mest nedlastet",sa:"A → Z",fdiv:"★ fremhevet",adiv:"alt",
     dl:"Last ned ↓",open:"Åpne ↗",dl_n:"nedlastinger",lk:"likerklikk",e1:"Ingenting her ennå.",e2:"Ingen resultater.",
@@ -371,7 +322,7 @@ const TR = {
     ppadm:"Donasjoner",ppmsglbl:"Melding til besøkende",
     ss:"Nettstedinnstillinger",hsl:"Hero-undertittel",cov:"Forsidebilde",
     scr:"Skjermbilder (opptil 6)",cls:"Lukk",img_tip:"Bilder komprimeres automatisk.",loading:"Laster..."},
-  pt:{h1:["Software que eu crio","e distribuo de graça."],sub:"Criei este site para publicar todos os meus pequenos projetos.",
+  pt:{h1:["Software que eu crio","e distribuo de graça."],sub:"Criei este site para publicar todos os pequenos projetos que fiz por tédio, para que qualquer pessoa possa baixá-los e usá-los de graça.",
     progs:"programas",dls:"downloads",feat:"em destaque",search:"Buscar...",platform:"Plataforma:",
     clear:"limpar",sn:"Mais recentes",sp:"Mais baixados",sa:"A → Z",fdiv:"★ em destaque",adiv:"tudo",
     dl:"Baixar ↓",open:"Abrir ↗",dl_n:"downloads",lk:"curtidas",e1:"Nada aqui ainda.",e2:"Sem resultados.",
@@ -394,7 +345,7 @@ const TR = {
     ppadm:"Doações",ppmsglbl:"Mensagem para visitantes",
     ss:"Configurações",hsl:"Subtítulo do hero",cov:"Imagem de capa",
     scr:"Capturas (até 6)",cls:"Fechar",img_tip:"Imagens são comprimidas automaticamente.",loading:"Carregando..."},
-  ja:{h1:["私が作るソフトウェアを","無料で公開しています。"],sub:"暇つぶしで作ったちょっとしたプロジェクトを、みんなに無料で使ってもらえるよう公開するために作ったサイトです。",
+  ja:{h1:["私が作るソフトウェアを","無料で公開しています。"],sub:"退屈しのぎに作った小さなプロジェクトをすべてアップロードして、誰でも無料でダウンロードして使えるようにするために、このサイトを作りました。",
     progs:"プログラム",dls:"DL",feat:"おすすめ",search:"検索...",platform:"プラットフォーム：",
     clear:"クリア",sn:"新着順",sp:"DL数順",sa:"A → Z",fdiv:"★ おすすめ",adiv:"すべて",
     dl:"ダウンロード ↓",open:"開く ↗",dl_n:"DL",lk:"いいね",e1:"まだ何もありません。",e2:"結果がありません。",
@@ -417,7 +368,7 @@ const TR = {
     ppadm:"寄付 / 支援",ppmsglbl:"訪問者へのメッセージ",
     ss:"サイト設定",hsl:"ヒーローのサブタイトル",cov:"カバー画像",
     scr:"スクリーンショット（最大6枚）",cls:"閉じる",img_tip:"画像は自動的に圧縮されます。",loading:"読込中..."},
-  zh:{h1:["我开发的软件","全部免费分享。"],sub:"我建立这个网站，是为了分享我因无聊而创作的各种小项目。",
+  zh:{h1:["我开发的软件","全部免费分享。"],sub:"我建立这个网站，是为了上传我因无聊而做的所有小项目，让任何人都可以免费下载和使用。",
     progs:"程序",dls:"下载",feat:"精选",search:"搜索...",platform:"平台：",
     clear:"清除",sn:"最新",sp:"最多下载",sa:"A → Z",fdiv:"★ 精选",adiv:"全部",
     dl:"下载 ↓",open:"打开 ↗",dl_n:"下载",lk:"点赞",e1:"暂时没有内容。",e2:"没有搜索结果。",
@@ -440,7 +391,7 @@ const TR = {
     ppadm:"捐赠 / 支持",ppmsglbl:"访客消息",
     ss:"网站设置",hsl:"主页副标题",cov:"封面图片",
     scr:"截图（最多6张）",cls:"关闭",img_tip:"图片会自动压缩。",loading:"加载中..."},
-  ru:{h1:["Программы, которые я делаю","и раздаю бесплатно."],sub:"Я создал этот сайт, чтобы делиться небольшими проектами от скуки.",
+  ru:{h1:["Программы, которые я делаю","и раздаю бесплатно."],sub:"Я сделал этот сайт, чтобы выкладывать все свои небольшие проекты, созданные от скуки, — чтобы любой мог скачать и использовать их бесплатно.",
     progs:"программы",dls:"скачивания",feat:"избранное",search:"Поиск...",platform:"Платформа:",
     clear:"сбросить",sn:"Сначала новые",sp:"По скачиваниям",sa:"А → Я",fdiv:"★ избранное",adiv:"все",
     dl:"Скачать ↓",open:"Открыть ↗",dl_n:"скач.",lk:"лайки",e1:"Пока ничего.",e2:"Ничего не найдено.",
@@ -600,8 +551,8 @@ function ImageUploadField({label,tip,single,images,onChange,onRemove,th,lbl,maxC
 }
 
 function DetailModal({prog,liked,onLike,onDownload,loadingDl,onClose,th,tr,inLibrary,onToggleLibrary,lt}) {
-  // a drag that merely ENDS on the backdrop must not discard the dialog, and
-  // the page behind it stays put while it is open
+  // Only a real click on the backdrop closes this, not a drag that merely ends
+  // there; the page behind stays put while it is open.
   const backdrop = useBackdropClose(onClose);
   useScrollLock();
   const [slide,setSlide]=useState(0);
@@ -759,13 +710,9 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
             {fmt.n(p.dl)} {tr.dl_n}
             {hasImages&&<span onClick={()=>onDetail(p)} style={{marginLeft:8,color:"var(--sv-accent)",cursor:"pointer",textDecoration:"underline",fontSize:10}}>{(p.screenshots||[]).length+1} photo{((p.screenshots||[]).length+1)!==1?"s":""}</span>}
           </div>
-          {/* Builds win. customDlBtn (the hold-to-charge button) is passed in for
-              EVERY card, and `customDlBtn ?? …` meant it always won — so a
-              program with Windows/macOS/Linux builds never showed those three
-              buttons, and the charge button called download() with no OS
-              target, which resolved to no URL at all. That is the whole of
-              "nothing happens when I press download". The charge button still
-              covers programs that have a single file instead of builds. */}
+          {/* Builds win: customDlBtn is passed in for every card, so checking hasBuilds
+              first is what lets the per-OS buttons render at all. The charge button covers
+              programs that have a single file instead of builds. */}
           {hasBuilds(p) ? (
             <DownloadButtons prog={p} onDownload={onDownload} loadingDl={loadingDl} th={th} tr={tr}/>
           ) : (customDlBtn ?? (
@@ -777,19 +724,10 @@ function ProgramCard({p,onDownload,onLike,liked,onDetail,onTitleHold,onContextMe
       </div>
     </article>
   );
-}// ── PART 2 — paste directly after Part 1 ──
+}
 
-/**
- * The announcement bar.
- *
- * It used to decide whether to scroll from `ann.text.length > 60` — a character
- * count, which knows nothing about how wide the window actually is. Scrolling
- * works by rendering the text TWICE so the loop can be seamless, so on any
- * screen where 60-odd characters comfortably fit, BOTH copies were simply
- * visible side by side and the banner read as though it had been pasted in
- * twice. It measures now, and only duplicates when there is genuinely something
- * to scroll.
- */
+/** Announcement bar. Scrolling renders the text twice to close the loop, so it
+ *  measures real overflow instead of guessing from character count. */
 function AnnouncementBanner({ text, colors }) {
   const barRef = useRef(null);
   const rulerRef = useRef(null);
@@ -800,8 +738,7 @@ function AnnouncementBanner({ text, colors }) {
     const check = () => {
       const bar = barRef.current, ruler = rulerRef.current;
       if (bar && ruler) {
-        // a little slack so text that only just fits cannot flip-flop between
-        // modes on a one-pixel resize
+        // Slack, so text that only just fits cannot flip-flop on a one-pixel resize.
         setOverflows(ruler.offsetWidth > bar.clientWidth - 24);
       }
       setStill(
@@ -834,9 +771,9 @@ function AnnouncementBanner({ text, colors }) {
                animation: "annSlide .35s cubic-bezier(.22,1,.36,1) both",
                overflow: "hidden", position: "relative" }}>
 
-      {/* An off-screen ruler holding exactly one unwrapped copy. Measuring this
-          rather than the visible content means the measurement never depends on
-          which mode we happen to be in — otherwise the two feed each other. */}
+      {/* An off-screen ruler holding exactly one unwrapped copy. Measuring this rather
+          than the visible content keeps the measurement independent of the current mode,
+          which would otherwise feed back into itself. */}
       <span ref={rulerRef} aria-hidden="true"
         style={{ position: "absolute", left: 0, top: 0, visibility: "hidden",
                  whiteSpace: "nowrap", pointerEvents: "none" }}>{text}</span>
@@ -845,12 +782,11 @@ function AnnouncementBanner({ text, colors }) {
         <div style={{ display: "inline-flex", whiteSpace: "nowrap",
                       animation: `annMarquee ${Math.max(18, text.length * 0.14)}s linear infinite` }}>
           <span style={{ paddingRight: 100 }}>{text}</span>
-          {/* the second copy exists only to close the loop — never read it out */}
+          {/* second copy exists only to close the loop; never read it out */}
           <span style={{ paddingRight: 100 }} aria-hidden="true">{text}</span>
         </div>
       ) : (
-        // fits: one copy, centred, still. Too long to fit but motion is off:
-        // wrap onto more lines rather than clipping the ends.
+        // Reduced motion: wrap onto more lines rather than clipping the ends.
         <span style={{ whiteSpace: overflows ? "normal" : "nowrap" }}>{text}</span>
       )}
     </div>
@@ -865,12 +801,8 @@ function openDB() {
   return new Promise((res, rej) => {
     if (typeof window === "undefined" || !window.indexedDB) { rej(new Error("no indexedDB")); return; }
 
-    // This used to be able to hang forever, and everything in the page's load
-    // sequence awaits it. `onblocked` (another tab holding an old version) fires
-    // NEITHER onsuccess nor onerror, and a browser that refuses IndexedDB
-    // outright — private windows, locked-down mobile, blocked third-party
-    // storage — can simply never call back. The page then sat behind its
-    // loading screen indefinitely.
+    // onblocked fires neither onsuccess nor onerror, and a browser that refuses
+    // IndexedDB may never call back at all, so settle exactly once.
     let settled = false;
     const finish = (fn, v) => { if (!settled) { settled = true; fn(v); } };
     const timer = setTimeout(() => finish(rej, new Error("indexedDB timed out")), 3000);
@@ -886,7 +818,7 @@ function openDB() {
   });
 }
 
-/** Never let a stuck IndexedDB request outlive its usefulness. */
+/** Cap a stuck IndexedDB request. */
 function withTimeout(promise, ms, fallback) {
   return Promise.race([promise, new Promise(r => setTimeout(() => r(fallback), ms))]);
 }
@@ -975,10 +907,8 @@ export default function Vault() {
     fetchMyLikes(user.id).then((ids) => { if (active) setLikes(ids); });
     fetchMyLibrary(user.id).then((ids) => { if (active) setLibraryState(ids); });
     return () => { active = false; };
-    // user?.id, NOT user: Supabase hands back a brand-new user object every
-    // time it refreshes the token, which happens on every tab focus. Keyed
-    // on the object this re-ran constantly; keyed on the id it runs when the
-    // account actually changes, which is the only time it should.
+    // Key on user?.id, not user: Supabase returns a new user object on every token
+    // refresh, which happens on each tab focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -992,17 +922,12 @@ export default function Vault() {
     const unlocked = ls.get(partyUnlockedKey(user.id)) === "1";
     const enabled = ls.get(partyEnabledKey(user.id)) === "1";
     setPartyUnlocked(unlocked);
-    // Restore the MODE but never the announcement panel. partySecret is the
-    // "Party Mode Active / Stop Party" dialog, and setting it here meant the
-    // dialog reappeared — and party switched itself back on — every single
-    // time this effect re-ran. Which was every tab focus: see the [user?.id]
-    // dependency note below.
+    // Restore the mode but never the dialog: setting partySecret here reopened it,
+    // and re-enabled party, on every re-run of this effect.
     setPartyMode(unlocked && enabled);
     setPartySecret(false);
-    // user?.id, NOT user: Supabase hands back a brand-new user object every
-    // time it refreshes the token, which happens on every tab focus. Keyed
-    // on the object this re-ran constantly; keyed on the id it runs when the
-    // account actually changes, which is the only time it should.
+    // Key on user?.id, not user: Supabase returns a new user object on every token
+    // refresh, which happens on each tab focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -1016,7 +941,6 @@ export default function Vault() {
     ping(enabled ? "Party mode enabled" : "Party mode disabled", "ok");
   };
 
-  // When auth state changes, re-check admin rights for the signed-in user.
   useEffect(() => {
     (async () => {
       if (!user) { setIsAdmin(false); setPage("home"); return; }
@@ -1032,16 +956,13 @@ export default function Vault() {
           if (j.adminEmail) setAdminEmail(j.adminEmail);
           if (j.problem) {
             console.warn("[vault] admin panel hidden:", j.problem);
-            // Shown on screen when something is actually broken, or when the
-            // site has no admin at all and whoever is here has to become one.
-            // A normal member on a site that already has admins just sees
-            // nothing, which is correct — it isn't their problem to solve.
+            // Surface the problem only when something is broken or the site has no admin
+            // yet; a normal member on a healthy site sees nothing.
             if (j.problemKind === "error" || !j.exists) setAdminProblem(j.problem);
             else setAdminProblem("");
           } else setAdminProblem("");
         } else {
-          // a failed check used to be indistinguishable from "you're not an
-          // admin" — the panel silently wasn't there and nothing said why
+          // Record why the check failed, so it is distinguishable from "not an admin".
           const body = await r.json().catch(() => ({}));
           const why = body.error || `HTTP ${r.status}`;
           console.warn("[vault] admin check failed:", why);
@@ -1052,10 +973,8 @@ export default function Vault() {
         setAdminProblem(`Admin check could not run: ${e?.message || e}`);
       }
     })();
-    // user?.id, NOT user: Supabase hands back a brand-new user object every
-    // time it refreshes the token, which happens on every tab focus. Keyed
-    // on the object this re-ran constantly; keyed on the id it runs when the
-    // account actually changes, which is the only time it should.
+    // Key on user?.id, not user: Supabase returns a new user object on every token
+    // refresh, which happens on each tab focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
   const [sett,setSett]             = useState({ann:{text:"",type:"info",visible:false},support:{url:"",msg:"",visible:false},heroSub:"",secretDownloads:[],twoFactorEnabled:false});
@@ -1095,13 +1014,22 @@ export default function Vault() {
   const [uploadKey,setUploadKey]   = useState(0);
   const [isInitializing,setIsInitializing] = useState(true);
   const [splashLeaving,setSplashLeaving]   = useState(false);
-  // Belt and braces: whatever goes wrong during startup, the loading screen
-  // comes down. A splash that waits for a real signal is right up until the
-  // signal never arrives, and then it is a locked door.
+  // Failsafe: whatever goes wrong during startup, the loading screen comes down.
   useEffect(()=>{
     const t=setTimeout(()=>{ setSplashLeaving(true); setTimeout(()=>setIsInitializing(false),450); },9000);
     return ()=>clearTimeout(t);
   },[]);
+
+  // Lock document scroll while the splash is up, so the page behind it cannot
+  // scroll and show its scrollbar.
+  useEffect(()=>{
+    if(typeof document==="undefined"||!isInitializing) return;
+    const root=document.documentElement, body=document.body;
+    const prevRoot=root.style.overflow, prevBody=body.style.overflow;
+    root.style.overflow="hidden";
+    body.style.overflow="hidden";
+    return ()=>{ root.style.overflow=prevRoot; body.style.overflow=prevBody; };
+  },[isInitializing]);
 
   const [secret1,setSecret1]   = useState(false);
   const [secret2,setSecret2]   = useState(false);
@@ -1142,8 +1070,8 @@ export default function Vault() {
   const [usersBusy,setUsersBusy]   = useState(false);
   const [usersErr,setUsersErr]     = useState("");
   const [usersTruncated,setUsersTruncated] = useState(false);
-  // the secret answer key, fetched from /api/admin/secrets when the Secrets tab
-  // is opened. null until then — it is deliberately not in the bundle.
+  // Answer key, fetched from /api/admin/secrets when the Secrets tab opens; null
+  // until then, and deliberately not in the bundle.
   const [secretHowto,setSecretHowto] = useState(null);
   const [howtoErr,setHowtoErr]       = useState("");
   const [userSaving,setUserSaving] = useState(null);
@@ -1171,8 +1099,7 @@ export default function Vault() {
   const footerClickRef = useRef(0);
   const footerTimerRef = useRef(null);
   const escTimes       = useRef([]);
-  // #20: set when the half-hour of stillness has elapsed, cleared when the
-  // reveal is actually played to somebody who is back at the keyboard.
+  // #20: set when the stillness timer elapses, cleared when the reveal is played.
   const stillnessRef   = useRef(false);
   const seenLangs      = useRef(new Set());
   const heroHoldRef      = useRef(false);
@@ -1185,11 +1112,16 @@ export default function Vault() {
   const featuredTimerRef = useRef(null);
 
   const tr=TR[lang]||TR.en;
-  // The chosen accent has to reach the theme object: nearly every button colours
-  // itself from th.org, so a CSS variable alone would never show up.
+  // The accent has to reach the theme object: buttons colour themselves from
+  // th.org, so a CSS variable alone would never show up.
   const [accent,setAccent]=useState("var(--sv-accent)");
+  // Bumped on every appearance change; accent alone misses corner and font edits.
+  const [appearanceRev,setAppearanceRev]=useState(0);
   useEffect(()=>{
-    const read=()=>{ const a=loadAppearance(); applyAppearance(a); setAccent(a.accent); };
+    const read=()=>{
+      const a=loadAppearance(); applyAppearance(a); setAccent(a.accent);
+      setAppearanceRev(v=>v+1);
+    };
     read();
     window.addEventListener("vault-appearance",read);
     return ()=>window.removeEventListener("vault-appearance",read);
@@ -1222,18 +1154,16 @@ export default function Vault() {
   },[]);
 
   useEffect(()=>{
-    // Nothing here may hang the page. A request with no timeout in the startup
-    // path is a loading screen with no end.
+    // Nothing in the startup path may hang: a request with no timeout is a loading
+    // screen with no end.
     const withT=(promise,ms=8000)=>Promise.race([promise,new Promise(r=>setTimeout(()=>r(null),ms))]);
     const getJSON=(url,opts)=>withT(
       fetch(url,opts).then(r=>r.ok?r.json():null).catch(()=>null));
 
     (async()=>{
       try {
-        // The admin check decides whether YOU see a panel. It has nothing to do
-        // with rendering the site, so it runs alongside instead of in front —
-        // it used to be the first await of three sequential round-trips, and
-        // every visitor waited for it before seeing a single program.
+        // The admin check only decides whether you see a panel, so it runs alongside
+        // the content fetches rather than in front of them.
         (async()=>{
           try {
             const sess = await supabase.auth.getSession();
@@ -1256,8 +1186,7 @@ export default function Vault() {
           } catch (e) { console.warn("[vault] admin check could not run:", e); }
         })();
 
-        // programs and settings are both needed to paint, so fetch them at the
-        // same time rather than one after the other
+        // both are needed to paint, so fetch them in parallel
         const [progJson, settJson] = await Promise.all([
           getJSON('/api/programs'),
           getJSON('/api/settings', { cache: 'no-store' }),
@@ -1276,14 +1205,11 @@ export default function Vault() {
 
         if(loadedProgs) setProgs(loadedProgs);
 
-        // Settings come from the SERVER first, so every visitor sees the same
-        // banner. IndexedDB is only a fallback for when the server can't be
-        // reached — it is per-browser, which is exactly why a published banner
-        // used to be visible to nobody but the admin who wrote it.
+        // Settings come from the server so every visitor sees the same banner;
+        // IndexedDB is a per-browser fallback for when the server cannot be reached.
         let savedSett = settJson?.settings || null;
-        // The route answers 200 even when the database read failed, so a broken
-        // settings table can never take the whole site down. That also makes a
-        // failure look exactly like "nothing saved yet" — hence saying so.
+        // The route answers 200 even when the database read failed, which looks
+        // identical to "nothing saved yet"; say which it was.
         if (settJson?.error) console.warn("[vault] site settings unreadable:", settJson.error);
         if(!savedSett) savedSett=await idbGet(K.sett);
 
@@ -1299,19 +1225,13 @@ export default function Vault() {
         if(dk!==null){ setIsDark(JSON.parse(dk)); }
         else { setIsDark(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false); }
         const lg=ls.get(K.lang); if(lg) setLang(lg.replace(/"/g,""));
-        /* likes now load per-account from the DB — see the useAuth effect */
+        /* likes load per-account from the DB; see the useAuth effect */
         const fd=ls.get(K.found); if(fd){const f=JSON.parse(fd);foundRef.current=f;setFoundSecrets(f);}
       } catch(e){ console.error("Storage load error:",e); }
       setReady(true);
-      // The splash used to disappear on a flat 600ms timer, which had nothing
-      // to do with whether anything was ready — so it vanished while the UI was
-      // still assembling. Wait for the webfonts (Anton/IBM Plex arrive late and
-      // reflow the whole page when they land) and then for two animation
-      // frames, so React has actually painted the grid before we uncover it.
-      // fade it out, THEN unmount — the overlay used to animate itself away
-      // after 0.5s via `fadeout .5s ease 0.5s forwards` baked into its style,
-      // so it went transparent on a fixed timer no matter what was still
-      // loading behind it. Now the leaving state drives the fade.
+      // Wait for the webfonts (they reflow the page when they land) and then two
+      // animation frames, so React has painted the grid before the splash lifts.
+      // Fade out via the leaving state, then unmount.
       const done=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
         setSplashLeaving(true);
         setTimeout(()=>setIsInitializing(false),450);
@@ -1324,13 +1244,85 @@ export default function Vault() {
 
   useEffect(()=>{ if(ready) ls.set(K.dark,JSON.stringify(isDark)); },[isDark,ready]);
   useEffect(()=>{ if(ready) ls.set(K.lang,lang); },[lang,ready]);
+
+  // Account preferences: localStorage paints before the first round-trip, but the
+  // server copy is the truth for a signed-in account. One canonical serialisation
+  // both ways, so key order cannot fool change detection and a pull does not echo
+  // straight back as an edit.
+  const prefsPayload=(a,dark,lg)=>({
+    appearance:Object.fromEntries(
+      Object.keys(APPEARANCE_DEFAULTS).sort()
+        .map(k=>[k, a?.[k] ?? APPEARANCE_DEFAULTS[k]])),
+    dark:!!dark,
+    lang:String(lg||"en"),
+  });
+  const lastPrefsRef  = useRef(null);   // last payload the server is known to hold
+  const prefsReadyRef = useRef(false);  // pull finished; pushes may start
+  const prefsTimerRef = useRef(null);
+
+  // pull, once per signed-in account
+  useEffect(()=>{
+    prefsReadyRef.current=false;
+    lastPrefsRef.current=null;
+    if(!user?.id) return;
+    let cancelled=false;
+    (async()=>{
+      try{
+        const headers=await authHeaders();
+        if(!headers.Authorization) return;
+        const r=await fetch('/api/prefs',{headers,cache:'no-store'});
+        const j=await r.json().catch(()=>({}));
+        if(cancelled) return;
+        // The route answers 200 with an error string when the column is absent
+        // (MIGRATION_PREFS.sql not run), so a missing migration cannot take the page down.
+        if(j?.error) console.warn("[vault] account preferences unreadable:",j.error);
+        const p=j?.prefs;
+        if(p&&typeof p==="object"){
+          const nextAppearance={...APPEARANCE_DEFAULTS,...(p.appearance||{})};
+          const nextDark=typeof p.dark==="boolean"?p.dark:isDark;
+          const nextLang=(typeof p.lang==="string"&&TR[p.lang])?p.lang:lang;
+          // Record first: saveAppearance fires the change event, and the push effect has
+          // to see this as the server's own value.
+          lastPrefsRef.current=JSON.stringify(prefsPayload(nextAppearance,nextDark,nextLang));
+          saveAppearance(nextAppearance);
+          setIsDark(nextDark);
+          setLang(nextLang);
+        }
+      }catch(e){ console.warn("[vault] could not load account preferences:",e); }
+      finally{ if(!cancelled) prefsReadyRef.current=true; }
+    })();
+    return ()=>{ cancelled=true; };
+    // authHeaders is rebuilt every render; isDark/lang are read only as fallbacks
+    // for fields the stored blob does not carry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[user?.id]);
+
+  // push, debounced, whenever any of it changes
+  useEffect(()=>{
+    if(!ready||!user?.id||!prefsReadyRef.current) return;
+    const json=JSON.stringify(prefsPayload(loadAppearance(),isDark,lang));
+    if(json===lastPrefsRef.current) return;
+    clearTimeout(prefsTimerRef.current);
+    prefsTimerRef.current=setTimeout(async()=>{
+      try{
+        const headers=await authHeaders({'Content-Type':'application/json'});
+        if(!headers.Authorization) return;
+        const r=await fetch('/api/prefs',{method:'PUT',headers,body:`{"prefs":${json}}`});
+        if(r.ok) lastPrefsRef.current=json;
+        else console.warn("[vault] preferences not saved to the account:",r.status);
+      }catch(e){ console.warn("[vault] could not save account preferences:",e); }
+    },600);
+    return ()=>clearTimeout(prefsTimerRef.current);
+    // appearanceRev stands in for the whole appearance object: it is bumped by the
+    // change event, so corners and font reach this as reliably as accent.
+  },[isDark,lang,appearanceRev,user?.id,ready]);
+
   useEffect(()=>{
     if(typeof document === "undefined") return;
-    // used to clear 0-10 and leave lvl-11/12 stuck on the element for good
     for(let i=0;i<=12;i++) document.documentElement.classList.remove(`corrupt-lvl-${i}`);
     if(!hideCorruption && foundSecrets.length > 0){
-      // 20 secrets mapped onto the 12 visual stages, so the ladder still ends
-      // at full corruption on the last find
+      // 20 secrets mapped onto the 12 visual stages, so the last find still lands on
+      // full corruption.
       const lvl = Math.min(12, Math.round(foundSecrets.length * 12 / 20));
       document.documentElement.classList.add(`corrupt-lvl-${lvl}`);
     }
@@ -1347,8 +1339,7 @@ export default function Vault() {
     else document.documentElement.classList.remove('party-active');
   },[secret1,secret2,secret3,secret4,secret5,secret6,secret7,secret8,secret9,secret10,secret11,secret12,partySecret]);
 
-  // The lowest-numbered secret still missing — the one the hint talks about.
-  // Derived, so it moves on by itself the moment that secret is found.
+  // Lowest-numbered secret still missing; derived, so the hint moves on by itself.
   const nextSecret=useMemo(()=>{
     for(let n=1;n<=20;n++){
       if(!foundSecrets.includes(n)) return {n,...SECRET_LABELS[n-1]};
@@ -1356,8 +1347,7 @@ export default function Vault() {
     return null;
   },[foundSecrets]);
 
-  // collapse the hint again whenever it moves on to a new secret, so the next
-  // one has to be asked for too rather than being handed over automatically
+  // Collapse the hint when it moves to a new secret, so the next has to be asked for.
   useEffect(()=>{ setHintOpen(false); },[nextSecret?.n]);
 
   const markSecretFound=async(n)=>{
@@ -1369,10 +1359,8 @@ export default function Vault() {
     if(nf.length===20) setTimeout(()=>setAllFoundModal(true),2600);
   };
 
-  // A secret shows its panel EXACTLY ONCE. Repeating the gesture afterwards is
-  // silent: the star is already yours, and a panel you have read four times is
-  // just an interruption. foundRef (not foundSecrets) because these run inside
-  // event handlers that captured an older render.
+  // A secret shows its panel exactly once. foundRef, not foundSecrets: these run
+  // inside event handlers that captured an older render.
   const alreadyFound=(n)=>foundRef.current.includes(n);
 
   /** Legacy secrets 1-12, each with its own bespoke overlay + setter. */
@@ -1425,13 +1413,9 @@ export default function Vault() {
   },[foundSecrets.length, glitchFeatureActive]);
 
   useEffect(()=>{
-    // The real thing ends B, A — Contra, Gradius and a thousand others. Without
-    // those two it is just eight arrows, which is the boring half.
     const SEQ=["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"];
-    // [length, FNV-1a checksum, what to fire]. The words themselves are not
-    // written down anywhere the browser can see — see typedCode() above. If you
-    // ever need to add one, hash it at build time and paste the number; do not
-    // be tempted to leave the plain word in a comment right next to it.
+    // [length, FNV-1a checksum, what to fire]. The words are not written down
+    // anywhere the browser can see; to add one, hash it at build time.
     const CODES=[
       [5,0x6c74e559,()=>fireSecret(14)],
       [4,0xd35ec4c9,()=>revealSecret(4,setSecret4,12000)],
@@ -1451,10 +1435,8 @@ export default function Vault() {
       }
       if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){
         typedRef.current=(typedRef.current+e.key.toLowerCase()).slice(-12);
-        // Two typed codes survive — #4's plain-English one and #14's Doom one —
-        // and neither appears here as text. They are matched by checksum
-        // instead, longest first so a buffer holding both can't award the
-        // shorter one by accident. See CODES above for why the words are gone.
+        // Matched by checksum, longest first, so a buffer holding both codes cannot
+        // award the shorter one by accident.
         for(const [len,sum,fire] of CODES){
           if(typedCode(typedRef.current.slice(-len))===sum){
             typedRef.current="";
@@ -1466,24 +1448,13 @@ export default function Vault() {
     };
     document.addEventListener("keydown",handle);
     return ()=>document.removeEventListener("keydown",handle);
-    // fireSecret is rebuilt every render; depending on it would rebind this
-    // listener on every render for no gain. activeSecret is the only value it
-    // actually reads, so that is the only dependency that matters.
+    // fireSecret is rebuilt every render; activeSecret is the only value read here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSecret]);
 
-  // #20 — the one secret you find by doing nothing, for a full half hour.
-  //
-  // Two things stop this being a coin that pays out to nobody:
-  //
-  //   * a hidden tab does not count as stillness; that is just a tab nobody is
-  //     looking at, so switching away restarts the clock;
-  //   * the reveal is EARNED by the timer but SPENT on your return. Nobody sits
-  //     motionless in front of a screen for thirty minutes — they walk away.
-  //     Firing the overlay the instant the timer elapses would play it to an
-  //     empty chair and auto-dismiss it seconds later, marking a secret "found"
-  //     that its finder never saw. So the timer only sets a flag, and the next
-  //     sign of life cashes it in.
+  // #20, found by doing nothing for half an hour. A hidden tab does not count as
+  // stillness, so switching away restarts the clock; the timer only sets a flag and
+  // the next sign of life spends it, so the reveal is never played to an empty chair.
   useEffect(()=>{
     if(typeof window==="undefined") return;
     const STILLNESS_MS=30*60*1000;
@@ -1491,8 +1462,7 @@ export default function Vault() {
     const spend=()=>{
       if(!stillnessRef.current) return;
       stillnessRef.current=false;
-      // longer than the usual 13s: this one is read by somebody who has just
-      // walked back to their desk and is still working out what changed.
+      // Longer than the usual 13s: read by someone who has just walked back to the desk.
       fireSecret(20,18000);
     };
     const arm=()=>{
@@ -1515,25 +1485,16 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSecret]);
 
-  // #19 — light every platform filter at once.
-  //
-  // Replaces "scroll to the very bottom", which was not really a secret: any
-  // visitor who read to the end of the page collected it without meaning to,
-  // and it told you nothing about the site on the way. Switching on all six
-  // platforms cannot happen by accident — the filter row exists to narrow the
-  // grid down, so lighting every one of them narrows nothing at all. It is a
-  // deliberately pointless gesture that only somebody poking at the site on
-  // purpose will make, and a phone can perform it exactly as easily as a
-  // desktop can.
+  // #19: light every platform filter at once. The filter row exists to narrow the
+  // grid, so lighting all six narrows nothing and cannot happen by accident.
   useEffect(()=>{
     if(OSS.every(o=>osFilter.includes(o.id))) fireSecret(19);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[osFilter,activeSecret]);
 
   const handleSearchKeyDown=(e)=>{
-    // #8's word is compared by checksum for the same reason the typed codes are
-    // — a literal here is one Ctrl+F away in the bundle. 0x5864ed98 is the
-    // FNV-1a of the word the hint describes.
+    // #8's word is compared by checksum for the same reason the typed codes are:
+    // a literal here is one Ctrl+F away in the bundle.
     if(e.key==="Enter" && typedCode(search.trim().toLowerCase())===0x5864ed98
        && !foundSecrets.includes(8)){
       revealSecret(8,setSecret8,14000);
@@ -1570,8 +1531,7 @@ export default function Vault() {
 
   useEffect(()=>{
     if(!secret1){setTermLines([]);clearInterval(termTimerRef.current);return;}
-    // the broadcast carries whatever is still hidden, rather than a fixed
-    // verse about the logo that goes stale the moment you find it
+    // Broadcast whatever is still hidden, so it cannot go stale once that one is found.
     const broadcast = nextSecret
       ? nextSecret.hint.split(". ").map((part,i,arr) =>
           "  " + part.toLowerCase() + (i < arr.length - 1 ? "." : ""))
@@ -1587,10 +1547,8 @@ export default function Vault() {
 
   const GLITCH="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^";
   const handleLogoClick=(e)=>{
-    // ctrl/cmd turns "go home" into something with privileges
     if(e&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); fireSecret(17); return; }
-    // the logo goes home; it must not take your admin rights with it, or the
-    // Admin button vanishes until the page is reloaded
+    // Going home must not clear admin rights, or the Admin button vanishes until reload.
     setPage("home");
     logoClicksRef.current++;
     clearTimeout(logoTimerRef.current);
@@ -1650,8 +1608,8 @@ export default function Vault() {
     else statsTimerRef.current=setTimeout(()=>{statsClickRef.current=0;},1500);
   };
 
-  // /api/programs and /api/upload are admin-only now (they used to accept
-  // anonymous writes), so every call has to carry the caller's access token.
+  // /api/programs and /api/upload are admin-only, so every call has to carry the
+  // caller's access token.
   const authHeaders=async(extra={})=>{
     try{
       const sess=await supabase.auth.getSession();
@@ -1664,7 +1622,6 @@ export default function Vault() {
     try{
       await idbSet(K.progs,l);
       setProgs(l);
-      // Sync to Supabase - wait for it to complete
       try {
         const res = await fetch('/api/programs', {
           method: 'POST',
@@ -1672,9 +1629,8 @@ export default function Vault() {
           body: JSON.stringify({ programs: l }),
         });
         if (!res.ok) {
-          // This is how "uploads aren't working" stayed invisible: the program
-          // was written to IndexedDB, appeared in the grid, and the failed
-          // server write only ever reached the console.
+          // A failed server write has to surface; reaching only the console is how
+          // "uploads aren't working" stays invisible.
           const body = await res.text();
           console.error("Failed to sync to Supabase:", res.status, body);
           ping(`Saved locally, but the server rejected it (${res.status}). It will not appear for anyone else.`,"err");
@@ -1689,8 +1645,7 @@ export default function Vault() {
     }
   };
   const saveSett =async s=>{
-    // local copy first so the panel reacts instantly, then publish it so
-    // everyone else actually gets it
+    // local copy first so the panel reacts instantly, then publish it
     try{ await idbSet(K.sett,s); setSett(s); }
     catch(e){ console.error("Failed to save settings locally:",e); }
     try{
@@ -1704,8 +1659,8 @@ export default function Vault() {
         ping(j.error||`Saved on this device only — the server refused (${r.status}).`,"err");
         return false;
       }
-      // Read it straight back. "It saved" and "it saved somewhere everyone can
-      // see it" are different claims, and only the second one is the point.
+      // Read it straight back: "it saved" and "it saved where everyone can see it"
+      // are different claims.
       try{
         const v=await fetch('/api/settings',{cache:'no-store'});
         const vj=await v.json().catch(()=>({}));
@@ -1740,14 +1695,13 @@ export default function Vault() {
     setSetupEmail("");
   };
 
-  // dialogs: only a genuine click on the backdrop closes them, and the page
-  // behind stays where it is while one is open
+  // Dialogs: only a genuine backdrop click closes them, and the page behind stays
+  // where it is while one is open.
   const modalBackdrop = useBackdropClose(closeModal);
   useScrollLock(!!modal);
 
   const login=async()=>{
     setPwErr("");
-    // Admins now sign in via Supabase auth; open the sign-in modal.
     openAuthModal();
     ping('Sign in with your account to access admin (if you are an admin).');
   };
@@ -1835,16 +1789,13 @@ export default function Vault() {
   const remove=async id=>{await saveProgs(progs.filter(p=>p.id!==id));setDelId(null);ping("Removed.");};
   const download=async(prog,target=null)=>{
     setLoadingDl(prog.id);
-    // Count it via the tiny dedicated endpoint. The old path POSTed the ENTIRE
-    // programs array back, which raced with other visitors and required write
-    // access to every row (see /api/downloads + MIGRATION_DOWNLOAD_COUNTER.sql).
+    // Count via the dedicated endpoint; posting the entire programs array back races
+    // with other visitors and needs write access to every row.
     setProgs(ps=>ps.map(p=>p.id===prog.id?{...p,dl:(p.dl||0)+1}:p));
     fetch("/api/downloads",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({programId:prog.id})}).catch(()=>{});
-    // Send the link wherever it actually lives. Everything used to be pushed
-    // through /api/download, which only accepts this project's own Supabase
-    // storage — so a pasted Drive/MEGA/GitHub link came back 400 behind an
-    // <a download>, and the browser showed that as nothing happening at all.
+    // Send the link wherever it actually lives: /api/download only accepts this
+    // project's own Supabase storage, so a pasted Drive/MEGA/GitHub link 400s.
     const t=target&&prog.downloads?prog.downloads[target]:null;
     const rawUrl=(t&&t.url)||null;
     const fileName=(t&&t.name)||prog.name;
@@ -1859,13 +1810,10 @@ export default function Vault() {
         document.body.appendChild(a); a.click(); a.remove();
         return;
       }
-      // somebody else's host: hand it to the browser. A MEGA link MUST go this
-      // way — its decryption key is in the '#' fragment and never reaches a
-      // server, so no proxy could ever fetch it.
-      // NOT window.open(url,"_blank","noopener"): passing noopener in the
-      // features string makes the call return null even when it succeeded, so
-      // the popup-blocked check below would fire on every single download.
-      // Open, then sever the opener on the handle instead.
+      // Someone else's host: hand it to the browser. A MEGA link must go this way, its
+      // decryption key is in the '#' fragment and never reaches a server. Passing
+      // noopener to window.open returns null even on success, which would trip the
+      // popup-blocked check below, so sever the opener on the handle instead.
       const w=window.open(r.href,"_blank");
       if(w){ try{ w.opener=null; }catch{ /* cross-origin, already severed */ } }
       else ping(`Your browser blocked the ${hostLabel(r.host)} tab — allow pop-ups for this site.`,"err");
@@ -1923,10 +1871,8 @@ export default function Vault() {
       }
     }catch(e){console.error("Email save error:", e);ping('Request failed','err');}
   };
-  // ---- who may see the admin panel -----------------------------------------
-  // Admin rights are the `is_admin` flag on a profile. Handing it to someone
-  // here is all it takes: the panel appears for them the next time their
-  // session is checked, and every admin-only API route reads the same flag.
+  // Admin rights are the is_admin flag on a profile: granting it here is all it
+  // takes, and every admin-only API route reads the same flag.
   const loadUsers=async()=>{
     setUsersErr(""); setUsersBusy(true);
     try{
@@ -1961,13 +1907,8 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[page,adminTab,isAdmin]);
 
-  // ---- the answer key ------------------------------------------------------
-  // The twenty "how to trigger" lines are no longer part of this file. They
-  // used to be, as a field on SECRET_LABELS, and because this is a client
-  // component that meant every visitor downloaded the complete solution list
-  // whether they ever saw the admin panel or not. They now come from
-  // /api/admin/secrets, which serves them only to a signed-in admin, and they
-  // are fetched only when this tab is actually open.
+  // Answer key. Served by /api/admin/secrets to signed-in admins only and fetched
+  // only when this tab is open, so it is never part of the client bundle.
   const loadSecretAnswers=async()=>{
     setHowtoErr("");
     try{
@@ -1985,9 +1926,8 @@ export default function Vault() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[page,adminTab,isAdmin,secretHowto]);
 
-  // The monthly report is scheduled by vercel.json, which only exists in
-  // production — locally nothing ever fires it. These buttons run it by hand so
-  // it can actually be tested, and report what the server said either way.
+  // vercel.json schedules this in production only, so nothing fires it locally;
+  // these buttons run it by hand.
   const runMonthlyReport=async(action,period)=>{
     setReportBusy(true); setReportMsg(null);
     try{
@@ -2034,9 +1974,8 @@ export default function Vault() {
   if(sort==="popular") vis.sort((a,b)=>(b.dl||0)-(a.dl||0));
   else if(sort==="az") vis.sort((a,b)=>a.name.localeCompare(b.name));
   else vis.sort((a,b)=>new Date(b.date)-new Date(a.date));
-  // #15 — ask the search for something that plainly is not here, and sit with
-  // the empty answer. Needs `vis`, so it lives here rather than up with the
-  // other effects.
+  // #15: sit with an empty search result. Needs vis, so it lives here rather than
+  // up with the other effects.
   const noResults = search.trim().length>=3 && vis.length===0;
   useEffect(()=>{
     if(!noResults) return;
@@ -2068,8 +2007,8 @@ export default function Vault() {
   const regVis=vis.filter(p=>!p.featured);
   const totalDl=progs.reduce((a,p)=>a+(p.dl||0),0);
   const topProg=[...progs].sort((a,b)=>(b.dl||0)-(a.dl||0))[0];
-  // inline styles below compare against 8-12, so keep this on the same 12-step
-  // scale the CSS uses rather than letting it run to 20
+  // Inline styles below compare against 8-12, so keep this on the same 12-step
+  // scale the CSS uses rather than letting it run to 20.
   const corruptionLevel = Math.min(12, Math.round(foundSecrets.length * 12 / 20));
   const corruptionLabel = corruptionLevel === 0 ? "stable" : corruptionLevel < 3 ? "frayed" : corruptionLevel < 5 ? "glitched" : corruptionLevel < 8 ? "fractured" : corruptionLevel < 10 ? "severed" : corruptionLevel < 12 ? "shattered" : "destroyed";
   const corruptionColor = corruptionLevel === 0 ? "#4ade80" : corruptionLevel < 3 ? "#facc15" : corruptionLevel < 5 ? "#fb923c" : corruptionLevel < 8 ? "#fb7185" : corruptionLevel < 10 ? "#dc2626" : corruptionLevel < 12 ? "#7c2d12" : "#1f1f1f";
@@ -2151,7 +2090,7 @@ export default function Vault() {
     <div id="sv-root" className={postGlitch?"glitchy":""} style={{position:"relative",minHeight:"100vh",overflow:"hidden",background:th.bg,color:th.blk,fontFamily:"'IBM Plex Mono','Courier New',monospace",animation:partyMode?"partyShift .65s linear infinite":"none"}}>
       {isInitializing&&(
         <Portal>
-        <div className="sv-overlay" style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:splashLeaving?"fadeout .45s ease forwards":"fadein .4s ease",overflow:"hidden",pointerEvents:"none"}}>
+        <div className="sv-overlay sv-splash" style={{position:"fixed",inset:0,background:`linear-gradient(135deg, ${th.bg} 0%, ${th.card} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,animation:splashLeaving?"fadeout .45s ease forwards":"fadein .4s ease",overflow:"hidden",pointerEvents:"none"}}>
           <div style={{position:"absolute",inset:0}}>
             <div style={{position:"absolute",top:"15%",right:"15%",width:250,height:250,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.08,borderRadius:"50%",filter:"blur(50px)"}}/>
             <div style={{position:"absolute",bottom:"15%",left:"10%",width:180,height:180,background:"radial-gradient(circle, var(--sv-accent) 0%, transparent 70%)",opacity:0.05,borderRadius:"50%",filter:"blur(40px)"}}/>
@@ -2194,7 +2133,11 @@ export default function Vault() {
         :root { color-scheme: ${isDark?"dark":"light"} !important; }
         #sv-root { background-color: ${th.bg} !important; color: ${th.blk} !important; }
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#aaa}
+        /* height matters as much as width: only the vertical bar was ever
+           styled, so any horizontal one turned up at the browser's chunky
+           default thickness and looked like a bug rather than a scrollbar. */
+        ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#aaa;border-radius:3px}
+        ::-webkit-scrollbar-track{background:transparent}
         @keyframes heroReveal{from{transform:translateY(108%);opacity:0}to{transform:translateY(0);opacity:1}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
@@ -2323,8 +2266,6 @@ export default function Vault() {
             {isDark?"☀":"◑"}
           </button>
           {isAdmin&&(
-            /* admins used to be dumped straight into the panel on sign-in and
-               had no way back once they left it — this is the way in and out */
             <button onClick={()=>setPage(page==="admin"?"home":"admin")}
               style={{padding:"6px 10px",border:th.bdr,background:page==="admin"?"var(--sv-accent)":th.card,
                       color:page==="admin"?"#fff":th.blk,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",
@@ -2352,10 +2293,9 @@ export default function Vault() {
           <section style={{padding:"60px 40px 48px",borderBottom:`1px solid ${th.div}`,background:th.heroBg}}>
             <div style={{maxWidth:980,margin:"0 auto",position:"relative"}}>
               <h1 className="hero-title" onMouseDown={handleHeroTitleDown} onMouseUp={handleHeroTitleUp} onMouseLeave={handleHeroTitleUp} onTouchStart={handleHeroTitleDown} onTouchEnd={handleHeroTitleUp} style={{fontFamily:"'Anton',sans-serif",fontSize:"clamp(44px,7vw,84px)",fontWeight:400,lineHeight:1,letterSpacing:.3,marginBottom:18,cursor:"pointer",userSelect:"none", opacity: corruptionLevel >= 9 ? 0.7 + Math.random() * 0.2 : 1, textShadow: corruptionLevel >= 10 ? '3px 3px 0 #f43f5e, -2px -2px 0 #00ff00' : 'none'}}>
-                {/* hero-line: the clipping box the reveal animation slides into.
-                    It needs overflow:hidden, but with line-height 1 there is no
-                    room under the baseline, so descenders (the g in "give") were
-                    sliced off — see global.css. */}
+                {/* hero-line: the clipping box the reveal animation slides into. It needs
+                    overflow:hidden, but with line-height 1 there is no room under the baseline and
+                    descenders get sliced off; see global.css. */}
                 <div className="hero-line" style={{overflow:"hidden"}}><span style={{display:"block",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) both"}}>{tr.h1[0]}</span></div>
                 <div className="hero-line" style={{overflow:"hidden"}}><span style={{display:"block",color:"var(--sv-accent)",animation:"heroReveal .55s cubic-bezier(.22,1,.36,1) .07s both"}}>{tr.h1[1]}</span></div>
               </h1>
@@ -2376,12 +2316,9 @@ export default function Vault() {
                 </div>
               )}
 
-              {/* A hint for the secret you have NOT found yet — never a
-                  description of the one you just got. It appears only once you
-                  have found at least one, so nothing is spoiled for a visitor
-                  who has no idea any of this exists, and the text stays folded
-                  away behind "need a nudge?" so working it out unaided is still
-                  the default. */}
+              {/* A hint for the secret you have not found yet, shown only once you have found
+                  at least one, so nothing is spoiled for a visitor who has no idea the hunt
+                  exists. It stays folded away behind "need a nudge?". */}
               {foundSecrets.length>0&&nextSecret&&(
                 <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${th.div}`,
                              maxWidth:560,animation:"fadeUp .5s ease both"}}>
@@ -2412,7 +2349,7 @@ export default function Vault() {
                   </p>
                 </div>
               )}
-              {/* Vault integrity UI removed; keep a single Reveal Corruption control */}
+              {/* reveal-corruption control */}
               {foundSecrets.length > 0 && (
               <div className="sv-corruption" style={{marginTop:18,display:"flex",gap:12,flexWrap:"wrap"}}>
                 <Btn th={th} v={hideCorruption?"dark":"ghost"} onClick={()=>{ setHideCorruption(!hideCorruption); ping(hideCorruption?'Corruption revealed.':'Corruption hidden.'); }} style={{minWidth:180}}>
@@ -2943,7 +2880,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* ── SECRET LOCKS (one per active secret, z-index 9001, above overlays) ── */}
+      {/* secret locks: one per active secret, z-index 9001, above the overlays */}
       {[
         {active:secret1,  close:()=>setSecret1(false)},
         {active:secret2,  close:()=>setSecret2(false)},
@@ -2957,15 +2894,13 @@ export default function Vault() {
         {active:secret10, close:()=>setSecret10(false)},
         {active:secret11, close:()=>setSecret11(false)},
         {active:secret12, close:()=>setSecret12(false)},
-        // 13-20 share one piece of state, so they share one lock — without this
-        // the new secrets had no "click anywhere to close" and you had to wait
-        // out the timer
+        // 13-20 share one piece of state, so they share one lock and one click-to-close.
         {active:!!activeSecret, close:()=>setActiveSecret(null)},
       ].map(({active,close},idx)=>
         active ? <SecretLock key={idx} onClose={close}/> : null
       )}
 
-      {/* SECRET 1 — Konami: CRT terminal */}
+      {/* secret 1: Konami, CRT terminal */}
       {secret1&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#030b03",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,overflow:"hidden",pointerEvents:"none"}}>
@@ -2987,7 +2922,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 2 — Logo 5×: glitch */}
+      {/* secret 2: logo 5x, glitch */}
       {secret2&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#050505",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .15s ease",pointerEvents:"none"}}>
@@ -3006,7 +2941,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 3 — Hold title: core breach */}
+      {/* secret 3: hold title, core breach */}
       {secret3&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
@@ -3026,7 +2961,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 4 — Type "open": vault door */}
+      {/* secret 4: type "open", vault door */}
       {secret4&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(8,6,3,.95)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .25s ease",pointerEvents:"none"}}>
@@ -3044,7 +2979,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 5 — Stats 5×: classified dossier */}
+      {/* secret 5: stats 5x, classified dossier */}
       {secret5&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
@@ -3070,7 +3005,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 6 — Footer Alt-trace: faultline */}
+      {/* secret 6: footer Alt-trace, faultline */}
       {secret6&&(
         <Portal>
         <div style={{position:"fixed",bottom:64,left:"50%",zIndex:9000,animation:"ghostFadeIn .5s ease both, ghostFloat 3s ease .5s infinite",pointerEvents:"none"}}>
@@ -3086,7 +3021,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 7 — Card Fault: hold program title */}
+      {/* secret 7: hold program title, card fault */}
       {secret7&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#05050a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .08s ease",pointerEvents:"none"}}>
@@ -3106,7 +3041,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 8 — Debug Probe: search for debug */}
+      {/* secret 8: search for debug, debug probe */}
       {secret8&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"#0d0019",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .2s ease",pointerEvents:"none"}}>
@@ -3124,7 +3059,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 9 — Schema Override: shift-click theme toggle */}
+      {/* secret 9: shift-click theme toggle, schema override */}
       {secret9&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"fadeIn .04s ease",background:"#020814",pointerEvents:"none"}}>
@@ -3154,7 +3089,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* SECRET 10 — Schema flip: theme toggle rush */}
+      {/* secret 10: theme toggle rush, schema flip */}
       {secret10&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:isDark?"#1b1212":"#f7f1e8",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:20,animation:"themeFlash .4s ease both",pointerEvents:"none"}}>
@@ -3269,7 +3204,7 @@ export default function Vault() {
         </Portal>
       )}
 
-      {/* ALL 12 FOUND */}
+      {/* all 12 found */}
       {allFoundModal&&(
         <Portal>
         <div className="sv-overlay" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:20,animation:"fadeIn .3s ease",pointerEvents:"none"}}>

@@ -31,7 +31,7 @@ export async function GET(req) {
   try {
     const svc = getServiceClient();
 
-    // Test connection
+    // connection test
     const { data, error } = await svc.from("programs").select("*").limit(1);
 
     if (error) {
@@ -42,7 +42,6 @@ export async function GET(req) {
       }, { status: 500 });
     }
 
-    // Get count
     const { count, error: countErr } = await svc.from("programs").select("*", { count: "exact", head: true });
 
     if (countErr) {

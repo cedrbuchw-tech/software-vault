@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/vault_client";
 import { requireAdmin } from "@/lib/api_auth";
 
-// Uploading writes to public storage under this project's name, so it is
-// admin-only. It used to be completely open: anyone could push arbitrary files
-// of any size into the bucket and hand out links on this domain.
+// Uploads write to public storage that serves links on this project's domain,
+// so admin only.
 const MAX_BYTES = 500 * 1024 * 1024;   // 500 MB
 
 export async function POST(req) {
@@ -38,10 +37,8 @@ export async function POST(req) {
     const storagePath = `${Date.now()}-${safeName}`;
     const fileName = safeName;
 
-    // Convert file to buffer
     const buffer = await file.arrayBuffer();
 
-    // Upload to Supabase Storage
     const { data, error } = await svc.storage
       .from(bucket)
       .upload(storagePath, new Uint8Array(buffer), {
@@ -54,7 +51,6 @@ export async function POST(req) {
       return NextResponse.json({ error: error.message || "Upload failed" }, { status: 500 });
     }
 
-    // Get public URL
     const { data: urlData } = svc.storage
       .from(bucket)
       .getPublicUrl(storagePath);

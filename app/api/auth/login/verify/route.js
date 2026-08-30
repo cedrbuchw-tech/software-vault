@@ -6,9 +6,8 @@ import { hashLoginCode } from "@/lib/login_code";
 
 // POST /api/auth/login/verify   body { ticket, code }   -> { session }
 //
-// Hands over the session that /start parked, but only for a correct, unexpired,
-// unused code. The row is deleted the moment it is used or written off, so a
-// code works exactly once.
+// Hands over the session /start parked, only for a correct, unexpired code.
+// The row is deleted on use or write-off, so a code works exactly once.
 
 const MAX_ATTEMPTS = 5;
 
@@ -40,9 +39,8 @@ export async function POST(req) {
       return NextResponse.json({ error: "Too many attempts — sign in again." }, { status: 429 });
     }
 
-    // constant-time compare so timing can't leak the code.
-    // hashLoginCode does the tidying (case, spaces, dashes) on both sides, so a
-    // code typed as "k7p-2m9" still matches the "K7P2M9" that was sent.
+    // Constant-time compare so timing cannot leak the code. hashLoginCode
+    // normalises case, spaces and dashes on both sides.
     const given = Buffer.from(hashLoginCode(code));
     const expected = Buffer.from(row.code_hash);
     const ok = given.length === expected.length && crypto.timingSafeEqual(given, expected);

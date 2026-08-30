@@ -6,8 +6,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req) {
-  // public by necessity (used before sign-in), so throttle abuse:
-  // mail bombing and username enumeration both start here.
+  // Public (used before sign-in): throttle username enumeration.
   if (!rateLimit("resolve:" + clientKey(req), 20, 60000)) return tooMany();
   try {
     const { username } = await req.json();

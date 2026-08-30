@@ -6,10 +6,8 @@ const resendKey = process.env.RESEND_API_KEY;
 const resend = resendKey ? new Resend(resendKey) : null;
 const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@resend.dev";
 
-// NOTE: nothing in the app calls this today. It stayed reachable by anyone,
-// which made it a free way to send mail from this project's verified domain to
-// any address (spam, and a fast route to a blacklisted sending domain). It is
-// now admin-only; delete the file if the welcome mail is never wired up.
+// Nothing calls this today. Admin only: left open it is a free mail relay on
+// this project's verified sending domain. Delete the file if it stays unused.
 export async function POST(req) {
   const auth = await requireAdmin(req);
   if (auth.response) return auth.response;

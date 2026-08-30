@@ -3,16 +3,12 @@ import { NextResponse } from "next/server";
 // GET /api/download?url=<storage url>&name=<filename>
 //
 // Streams a file from Supabase Storage with a download filename attached.
-//
-// Two things this must get right, because VaultLaunch relies on them:
-//   * Range requests are forwarded and the 206 answer is passed straight back,
-//     so an interrupted download can be RESUMED instead of restarted.
-//   * the body is streamed, not buffered — the old version did
-//     `await response.arrayBuffer()`, which pulled entire multi-hundred-MB
-//     builds into server memory before sending a single byte.
+// VaultLaunch depends on two things here: Range requests are forwarded and the
+// 206 passed back so a download resumes, and the body is streamed, never
+// buffered, since builds run to hundreds of MB.
 
-// A filename ends up in a response header, so strip anything that could break
-// out of it (CR/LF) or escape the quotes.
+// The name goes into a response header; strip CR/LF and anything that could
+// escape the quotes.
 function safeName(name) {
   return String(name || "download").replace(/[\r\n"\\]/g, "_").slice(0, 200);
 }
@@ -39,10 +35,8 @@ export async function GET(req) {
       return NextResponse.json({ error: "Missing file URL" }, { status: 400 });
     }
 
-    // Only ever fetch from this project's own Supabase storage. Without this
-    // the route is a server-side request forgery hole: anyone could pass an
-    // internal address (cloud metadata, a private host) and have the server
-    // fetch it for them and hand back the body.
+    // Only ever fetch from this project's own Supabase storage; without this
+    // the route is an SSRF hole onto internal addresses.
     if (!isAllowed(fileUrl)) {
       return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
     }

@@ -1,10 +1,6 @@
 "use client";
-// app/auth.jsx — self-contained user accounts (Supabase Auth)
-// ----------------------------------------------------------
-// Drops one <AuthButton lang th /> into the header. Everything else — session
-// restore, login/signup modal, logout, profile lookup, and its own translations
-// — lives here so the main page is barely touched. Uses the shared anon client
-// from lib/vault_client (sessions persist + refresh automatically in the browser).
+// Self-contained user accounts (Supabase Auth): session restore, sign-in modal,
+// logout, profile lookup and its own translations. Anon client from lib/vault_client.
 
 import { useState, useEffect, useRef } from "react";
 import { useBackdropClose, useScrollLock, Portal, scrollPanel } from "@/lib/modal_ux";
@@ -12,7 +8,7 @@ import { loadAppearance, saveAppearance, applyAppearance, setAppearanceScope, AC
 import { uploadAvatar, clearAvatar, initialsFor } from "@/lib/avatar";
 import { supabase } from "@/lib/vault_client";
 
-// ---- translations (same 8 languages as the site) ---------------------------
+// Translations, same 8 languages as the site
 const AUTH_T = {
   en: { in_:"Sign in", up_:"Create account", signin:"Sign in", signup:"Sign up",
         signout:"Log out", email:"Email", pass:"Password", user:"Username", emailOrUsername:"Email or username",
@@ -97,7 +93,7 @@ const AUTH_T = {
 };
 const T = (lang) => AUTH_T[lang] || AUTH_T.en;
 
-// ---- account-modal strings (same 8 languages) ------------------------------
+// Account-modal strings, same 8 languages
 const ACCT_T = {
   en: { account:"Account", save:"Save changes", updated:"Saved.", taken:"That username is taken.", uerr:"Couldn't save. Please try again.",
         twofa:"Two-Factor Auth", enable2fa:"Enable 2FA", disable2fa:"Disable 2FA", enabled2fa:"2FA is enabled",
@@ -135,7 +131,7 @@ function friendlyError(msg, t) {
   return msg;
 }
 
-// ---- per-account likes + opening the sign-in modal from elsewhere -----------
+// Per-account likes and library, plus opening the sign-in modal from elsewhere
 export async function fetchMyLikes(userId) {
   if (!userId) return [];
   const { data, error } = await supabase.from("likes").select("program_id").eq("user_id", userId);
@@ -190,19 +186,16 @@ async function resolveEmail(identifier) {
   return json.email;
 }
 
-// ---- session hook ----------------------------------------------------------
+// Session hook
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // saved appearance has to be in place on first paint, not only once the
-  // account dialog happens to be opened
+  // Apply saved appearance on first paint, not only when the account dialog opens.
   useEffect(() => { applyAppearance(loadAppearance()); }, []);
 
-  // Appearance follows the account. Signing out puts the site defaults back on
-  // screen straight away instead of leaving the last user's accent colour,
-  // rounded buttons and typeface behind; signing in restores that account's own.
+  // Appearance is scoped to the account, so signing out restores the site defaults.
   useEffect(() => { setAppearanceScope(user?.id || null); }, [user?.id]);
 
   useEffect(() => {
@@ -214,10 +207,8 @@ export function useAuth() {
     }).catch(() => active && setLoading(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const next = session?.user ?? null;
-      // Keep the SAME object when it is the same account. Supabase refreshes
-      // the token whenever the tab regains focus, and handing back a fresh
-      // object each time re-ran every effect keyed on `user` — which is how
-      // party mode kept switching itself back on when you tabbed back in.
+      // Keep the same object for the same account. Supabase hands back a fresh user
+      // on every token refresh, which would re-run every effect keyed on it.
       setUser((prev) => (prev && next && prev.id === next.id ? prev : next));
     });
     return () => { active = false; sub?.subscription?.unsubscribe?.(); };
@@ -247,21 +238,15 @@ function displayName(user, profile) {
     (user?.email ? user.email.split("@")[0] : "account");
 }
 
-// ---- header control --------------------------------------------------------
+// Header control
 export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMode }) {
   const t = T(lang);
   const { user, profile, loading, refreshProfile } = useAuth();
   const [open, setOpen] = useState(false);
   const [acct, setAcct] = useState(false);
 
-  // Links that arrive from an email land here with their tokens in the URL.
-  //
-  // supabase-js used to pick those up by itself (detectSessionInUrl), but it
-  // also erased the fragment before anything could read WHY the visitor had
-  // arrived — which is exactly why a password-reset link just dropped you on
-  // the homepage. That option is off now and the link is read here instead:
-  // recovery goes to the page built for it, everything else (confirmation,
-  // magic link) signs you in as before.
+  // Email links arrive with their tokens in the URL, and detectSessionInUrl is off,
+  // so read them here: recovery redirects to its own page, anything else signs in.
   useEffect(() => {
     if (typeof window === "undefined" || linkConsumed) return;
     const h = window.location.hash || "";
@@ -294,10 +279,8 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
 
   async function signOut() {
     setAcct(false);
-    // "local" logs this browser out. The default ("global") revokes every
-    // refresh token the account has, which also kills your other devices — and,
-    // because the call was never awaited, could still be in flight when you
-    // signed back in and cut the brand-new session down with it.
+    // scope "local" signs out this browser only. The default "global" revokes every
+    // refresh token on the account, which also ends its sessions on other devices.
     try { await supabase.auth.signOut({ scope: "local" }); }
     catch { await supabase.auth.signOut().catch(() => {}); }
   }
@@ -360,11 +343,8 @@ export function AuthButton({ lang, th, partyUnlocked, partyMode, onTogglePartyMo
   );
 }
 
-// ---- login / signup modal --------------------------------------------------
-// Supabase sends people back from a password-reset mail with the tokens in the
-// URL fragment and type=recovery. supabase-js consumes the fragment to create a
-// session, but nothing used to notice WHY they arrived — so the link just
-// dropped you on the homepage with no way to set a new password.
+// Login / signup modal
+// Recovery mails come back with type=recovery in the fragment or the query string.
 function isRecoveryLink() {
   if (typeof window === "undefined") return false;
   const hash = window.location.hash || "";
@@ -383,22 +363,17 @@ function AuthModal({ lang, th, onClose }) {
   const [code2fa, setCode2fa] = useState("");
   const [ticket, setTicket] = useState("");
 
-  // a drag ending on the backdrop must not throw away what was typed; and the
-  // page behind the dialog shouldn't scroll while it's open
+  // A drag that ends on the backdrop must not close the dialog.
   const backdrop = useBackdropClose(onClose);
   useScrollLock();
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  // `msg` is a note shown ABOVE the form — the form stays usable. `done`
-  // replaces the form, for the states where there is genuinely nothing left to
-  // fill in. They used to be the same thing, which is why "we sent a code to
-  // your email" hid the very box the code had to be typed into.
+  // `msg` sits above the form and leaves it usable; `done` replaces the form.
   const [msg, setMsg] = useState("");
   const [done, setDone] = useState("");
 
-  // The sign-up poll below outlives the dialog if nobody stops it, and it hits
-  // the auth server every four seconds for five minutes.
+  // The sign-up poll below outlives the dialog unless it is cleared on unmount.
   const pollRef = useRef(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -409,8 +384,7 @@ function AuthModal({ lang, th, onClose }) {
       if (mode === "newpw") {
         if (pw.length < 8) throw new Error("Password must be at least 8 characters.");
         if (pw !== pw2) throw new Error("The two passwords don't match.");
-        // the recovery link already established a session, so this updates the
-        // password of the account that link belonged to
+        // The recovery link already opened a session, so this updates that account.
         const { error } = await supabase.auth.updateUser({ password: pw });
         if (error) throw error;
         // drop the tokens out of the address bar once they've been used
@@ -442,10 +416,8 @@ function AuthModal({ lang, th, onClose }) {
           const sentTo = data?.user?.email || actualEmail;
           setDone(t.check);
 
-          // The confirmation link is usually opened on a phone, which leaves this
-          // browser sitting on an unconfirmed account. Quietly retry the sign-in
-          // until it goes through, so tapping the link on the phone also lands
-          // you logged in here. Gives up after five minutes.
+          // The confirmation link is usually opened on a phone, so retry the sign-in here
+          // until it goes through. Gives up after five minutes.
           const started = Date.now();
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = setInterval(async () => {
@@ -466,8 +438,7 @@ function AuthModal({ lang, th, onClose }) {
               body: JSON.stringify({ email: sentTo, redirectTo: window.location.origin }),
             });
             const info = await res.json().catch(() => ({}));
-            // Never leave someone waiting for a mail that was never sent: if the
-            // send failed, say so instead of showing "check your inbox".
+            // Report a failed send instead of leaving "check your inbox" on screen.
             if (!res.ok || info.ok === false) {
               setDone("");
               if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -488,9 +459,8 @@ function AuthModal({ lang, th, onClose }) {
           }
         } else onClose();                                   // confirmation off → logged in
       } else if (mode === "mfa") {
-        // second step of sign-in: the password already produced an aal1 session,
-        // and this lifts it to aal2. Anything guarded by aal2 stays out of reach
-        // until this succeeds — the auth server decides that, not this page.
+        // Second step of sign-in: lifts the aal1 session to aal2. The auth server
+        // enforces what aal2 guards, not this page.
         const { data: factors, error: fErr } = await supabase.auth.mfa.listFactors();
         if (fErr) throw fErr;
         const totp = (factors?.totp || []).find((f) => f.status === "verified");
@@ -513,9 +483,8 @@ function AuthModal({ lang, th, onClose }) {
         if (error) throw error;
         onClose();
       } else {
-        // The server decides which second factor this account needs. For the
-        // email factor it deliberately withholds the session until the code is
-        // confirmed, so an unverified sign-in never reaches the browser.
+        // The server picks the second factor, and for the email factor it withholds
+        // the session until the code is confirmed.
         const res = await fetch("/api/auth/login/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -600,8 +569,8 @@ function AuthModal({ lang, th, onClose }) {
                     ? "Enter the 6-character code we emailed you. It expires in 10 minutes."
                     : "Enter the 6-digit code from your authenticator app."}
                 </p>
-                {/* the emailed code is letters AND digits; the authenticator app
-                    is always six digits, so each gets its own keyboard and filter */}
+                {/* emailed codes are alphanumeric, authenticator codes are always six
+                    digits, so each gets its own keyboard and filter */}
                 <input value={code2fa}
                   onChange={(e) => setCode2fa(mode === "emailcode"
                     ? e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)
@@ -685,10 +654,10 @@ function AuthModal({ lang, th, onClose }) {
   );
 }
 
-// ---- account modal (change username + sign out) ----------------------------
+// Account modal
 const CROP_VIEW = 220;   // on-screen size of the round crop window
 
-/** Pick the visible part of a picture — drag to move, slider to zoom. */
+/** Pick the visible part of a picture: drag to move, slider to zoom. */
 function AvatarCropper({ file, th, onCancel, onConfirm, busy }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -723,9 +692,8 @@ function AvatarCropper({ file, th, onCancel, onConfirm, busy }) {
         <img src={url.current} alt="" draggable={false}
           style={{ position: "absolute", left: "50%", top: "50%",
                    transform: `translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) scale(${zoom})`,
-                   // "cover" the circle: min-width/min-height let a large photo
-                   // render at its NATURAL size (736px in a 220px window), which
-                   // is why it looked wildly zoomed. Fixed box + object-fit.
+                   // Fixed box plus object-fit, not min-width/min-height: those let a
+                   // large photo render at its natural size inside the crop window.
                    width: "100%", height: "100%",
                    objectFit: "cover", userSelect: "none", pointerEvents: "none" }} />
       </div>
@@ -797,8 +765,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
   const [factorId, setFactorId] = useState("");
   const [emailTwofa, setEmailTwofa] = useState(false);
   const [otpauth, setOtpauth] = useState("");
-  // seed from what the header already fetched, so the picture is there on the
-  // first frame instead of waiting for another round trip
+  // Seed from the profile the header already fetched, so the picture is on
+  // screen in the first frame.
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
@@ -814,13 +782,17 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
     });
   }
 
+  // Re-read when /api/prefs applies the account's saved values, so these
+  // controls do not disagree with the rest of the page.
   useEffect(() => {
-    // 2FA now lives in Supabase's own MFA system, so ask it which factors the
-    // account actually has instead of trusting a flag in our profiles table.
-    // Asked separately on purpose. Selecting a column the account may not read
-    // fails the WHOLE query, and this used to swallow that — so if
-    // email_2fa_enabled wasn't granted (it is added by a later migration than the
-    // one that builds the grant list) the picture silently vanished along with it.
+    const sync = () => setAppearance(loadAppearance());
+    window.addEventListener("vault-appearance", sync);
+    return () => window.removeEventListener("vault-appearance", sync);
+  }, []);
+
+  useEffect(() => {
+    // Separate selects on purpose: selecting one column the account may not read
+    // fails the whole query, and email_2fa_enabled is granted by a later migration.
     supabase.from("profiles").select("avatar_url").eq("id", user.id).single()
       .then(({ data }) => setAvatarUrl(data?.avatar_url || ""))
       .catch(() => {});
@@ -970,8 +942,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
     if (name === current) { setMsg(at.updated); return; }
     setErr(""); setMsg(""); setBusy(true);
     try {
-      // same reason as the avatar: an upsert would try to write `id`, which
-      // this account may not update. Update, then insert if there is no row.
+      // An upsert would write `id`, which this account may not update. Update
+      // first, then insert if no row matched.
       let { data: rows, error } = await supabase.from("profiles")
         .update({ username: name }).eq("id", user.id).select("id");
       if (!error && (!rows || rows.length === 0)) {
@@ -1005,9 +977,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
   };
   const label = { fontSize: 11, color: th.blk, opacity: 0.7, margin: "0 0 4px" };
 
-  // ---- one set of tokens for the whole dialog -------------------------------
-  // Every block used to invent its own padding, label size and button height,
-  // which is what made this read as a jumble rather than a settings panel.
+  // One set of tokens for the whole dialog
   const section = {
     border: `1px solid ${th.blk}22`, padding: 16, marginBottom: 14,
     background: `${th.blk}08`,
@@ -1018,7 +988,6 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
   };
   const fieldLabel = { fontSize: 11, opacity: 0.8, margin: "0 0 5px" };
   const hint = { fontSize: 10, opacity: .6, lineHeight: 1.55, margin: "6px 0 0" };
-  // the four dropdowns read better as a grid than as a tall stack
   const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
   const selectStyle = { ...input, marginBottom: 0, background: th.inputBg, cursor: "pointer" };
   const checkRow = {
@@ -1029,7 +998,6 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
     width: 14, height: 14, cursor: "pointer", accentColor: th.org, flexShrink: 0,
   };
   const divider = { height: 1, background: th.blk, opacity: 0.13, margin: "18px 0" };
-  // every full-width button in here is now the same height
   const wideBtn = (bg, fg) => ({
     width: "100%", padding: 11, background: bg, color: fg, border: th.bdr,
     cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
@@ -1042,16 +1010,13 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)",
                display: "grid", placeItems: "center", zIndex: 1000, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        // 400 rather than 360: the two-column grid was cramped enough that the
-        // dropdown labels wrapped, which is half of why this felt untidy
+        // 400 rather than 360: at 360 the two-column grid wraps its dropdown labels.
         style={{ width: "min(400px,92vw)", background: th.card, border: th.bdr,
                  boxShadow: th.shd, padding: 22, color: th.blk,
                  fontFamily: "'IBM Plex Mono',monospace", ...scrollPanel }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
                       marginBottom: 16, position: "sticky", top: -22, zIndex: 2,
                       background: th.card, paddingTop: 4, paddingBottom: 10,
-                      // the sticky heading used to slide over the content behind
-                      // it with nothing marking the edge
                       borderBottom: `1px solid ${th.blk}18` }}>
           <strong style={{ fontSize: 16 }}>{at.account}</strong>
           <button onClick={onClose} style={{ ...linkBtn, fontSize: 16, textDecoration: "none" }}>✕</button>
@@ -1095,8 +1060,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
             onChange={pickAvatar} style={{ display: "none" }} />
         </div>
-        {/* the negative top margin here used to pull this line up into the row
-            above it, so it collided with the Change picture / Remove links */}
+        {/* avatar upload note */}
         <p style={{ ...hint, margin: "0 0 16px" }}>
           Square-cropped and scaled to 256px in your browser before uploading.
         </p>
@@ -1128,9 +1092,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
               )}
               <p style={{ fontSize: 11, marginBottom: 6 }}>{at.scan}</p>
 
-              {/* On a phone you can't scan the screen you're reading, so offer
-                  the two things that do work there: hand the code straight to an
-                  installed authenticator, or copy the secret and type it in. */}
+              {/* A phone cannot scan the screen it is showing: offer the authenticator
+                  handoff and a copyable key instead. */}
               {otpauth && (
                 <a href={otpauth}
                   style={{ display: "block", textAlign: "center", padding: 9, marginBottom: 8,
@@ -1170,7 +1133,7 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
                          opacity: verify2faBusy || code2fa.length !== 6 ? 0.6 : 1 }}>
                 {verify2faBusy ? "…" : at.verify}
               </button>
-              {/* used to sit flush against the button above it */}
+              {/* cancel enrolment */}
               <div style={{ textAlign: "center", marginTop: 10 }}>
                 <button onClick={() => setSetup2fa(false)} style={linkBtn}>Cancel</button>
               </div>
@@ -1208,15 +1171,12 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
           )}
         </div>
 
-        {/* Nothing here until it has actually been found. The section used to
-            render a "find party mode to unlock this" placeholder, which told
-            everyone there was something to find and roughly where — the whole
-            point is that you stumble on it. No trace now: no heading, no box. */}
+        {/* Render nothing at all until it is unlocked. A placeholder would give
+            away that there is something to find, and roughly where. */}
         {user && partyUnlocked && (
           <div style={section}>
             <p style={sectionTitle}>Party mode</p>
-            {/* full width like every other action in this dialog, instead of a
-                half-width button with the caption squeezed in beside it */}
+            {/* full width, like every other action in this dialog */}
             <button onClick={() => onTogglePartyMode(!partyMode)}
               style={{ ...wideBtn(partyMode ? "#ec4899" : th.card, partyMode ? "#fff" : th.blk),
                        cursor: "pointer", opacity: 1 }}>
@@ -1228,14 +1188,12 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
           </div>
         )}
 
-        {/* Appearance — every option here is actually applied (lib/appearance.js) */}
+        {/* Appearance; every option here is applied by lib/appearance.js */}
         <div style={section}>
           <p style={sectionTitle}>Appearance</p>
 
-          {/* The grid holds the four dropdowns and NOTHING else. The accent
-              swatches, the checkboxes and their explanations used to be grid
-              children too, so they were laid out as columns alongside the
-              selects — which is why nothing here ever lined up. */}
+          {/* The grid holds the four dropdowns and nothing else: any other child
+              is laid out as a further column. */}
           <div style={grid2}>
             <div>
               <p style={fieldLabel}>Corners</p>
@@ -1285,9 +1243,8 @@ function AccountModal({ lang, th, user, profile, onClose, onSaved, onSignOut, pa
               {ACCENTS.map((a) => (
                 <button key={a.id} title={a.name} aria-label={a.name}
                   onClick={() => updateAppearance({ accent: a.id })}
-                  // the selection is drawn as an OUTLINE rather than a thicker
-                  // border, so picking a colour no longer resizes the swatch
-                  // and shoves the whole row sideways
+                  // Draw the selection as an outline, not a thicker border: a border
+                  // resizes the swatch and shifts the whole row.
                   style={{ width: 30, height: 30, background: a.id, cursor: "pointer",
                            border: `1px solid ${th.blk}33`, padding: 0,
                            outline: appearance.accent === a.id ? `2px solid ${th.blk}` : "none",

@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/vault_client";
 
-// /api/library — the signed-in user's personal library ("My Apps").
-// The launcher (or any client) authenticates with the user's Supabase access
-// token: send  Authorization: Bearer <access_token>.  The token is validated
-// server-side and the user id is taken from it, so a caller can only ever read
-// or change their OWN library.
+// /api/library, the signed-in user's personal library ("My Apps").
+// Clients authenticate with Authorization: Bearer <supabase access token>.
 //
 //   GET    /api/library            -> { library: [ ...full program objects ] }
 //   POST   /api/library            body { programId }   -> { ok: true }
 //   DELETE /api/library?programId=  (or body { programId }) -> { ok: true }
+//
+// The user id comes from the verified token, never from the request, so a caller
+// can only read or change their own library.
 
 const SUPABASE_ENABLED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 

@@ -39,11 +39,8 @@ export async function GET(req) {
   }
 }
 
-// POST /api/programs - save all programs
-// Writing the catalogue is admin-only. This route had NO authentication at all:
-// anyone who knew the URL could POST a replacement programs array and wipe or
-// rewrite the entire catalogue. It was left open because the download counter
-// used it from the browser — that now goes through /api/downloads instead.
+// POST /api/programs (admin only) - replace the whole catalogue.
+// Public download counting goes through /api/downloads instead.
 export async function POST(req) {
   const auth = await requireAdmin(req);
   if (auth.response) return auth.response;
@@ -63,9 +60,8 @@ export async function POST(req) {
 
     const svc = getServiceClient();
 
-    // Fetch existing rows first. `likes` is maintained by a DB trigger (on the
-    // `likes` table), so we PRESERVE the stored value and never overwrite it from
-    // the client payload — otherwise a download/edit save would clobber the count.
+    // `likes` is maintained by a trigger on the `likes` table, so keep the stored
+    // value; taking it from the client payload would clobber the count.
     const { data: existing, error: fetchErr } = await svc.from("programs").select("id, likes");
     if (fetchErr && !isMissingTableError(fetchErr)) {
       console.error("Error fetching existing programs:", fetchErr);
@@ -97,7 +93,6 @@ export async function POST(req) {
     const existingIds = new Set(existing?.map(p => p.id) ?? []);
     const incomingIds = new Set(programs.map(p => p.id).filter(id => id));
 
-    // Delete programs not in the incoming list
     const toDelete = Array.from(existingIds).filter(id => !incomingIds.has(id));
     if (toDelete.length > 0) {
       console.log("Deleting programs:", toDelete);
@@ -108,7 +103,6 @@ export async function POST(req) {
       }
     }
 
-    // Upsert incoming programs
     if (progsToSave.length > 0) {
       console.log("Upserting programs:", progsToSave.length);
       const { error: upsertErr } = await svc.from("programs").upsert(progsToSave);

@@ -6,15 +6,9 @@ import { requireAdmin } from "@/lib/api_auth";
 
 // Monthly report.
 //
-//   GET  ?preview=1   (admin)          → the numbers + the rendered mail, sends nothing
-//   GET               (cron or admin)  → builds and SENDS the report
-//   POST              (cron or admin)  → same, used by the admin panel button
-//
-// Why this needed rewriting: vercel.json schedules a GET here on the 1st of every
-// month, but GET only ever produced a preview — only POST sent anything. And both
-// handlers demanded a Supabase access token belonging to an admin, which a
-// scheduled request can never have. So the cron fired, was told 401, and no
-// report ever arrived.
+//   GET  ?preview=1   (admin)          -> numbers + rendered mail, sends nothing
+//   GET               (cron or admin)  -> builds and sends the report
+//   POST              (cron or admin)  -> same, used by the admin panel button
 
 const resendKey = process.env.RESEND_API_KEY;
 const resend = resendKey ? new Resend(resendKey) : null;
@@ -22,12 +16,8 @@ const fromEmail = process.env.RESEND_FROM_EMAIL;
 const FALLBACK_RECIPIENT = "CedrBuchw@gmail.com";
 
 /**
- * Is this the scheduler rather than a person?
- *
- * Vercel sets `x-vercel-cron` on its own invocations and strips that header from
- * anything arriving off the internet, so it cannot be forged from outside. If
- * CRON_SECRET is set, Vercel also sends it as a bearer token — that is the
- * stronger check, so set it.
+ * Vercel strips `x-vercel-cron` from external requests, so it cannot be forged.
+ * CRON_SECRET, when set, is the stronger check.
  */
 function isCronRequest(req) {
   const secret = process.env.CRON_SECRET;
@@ -38,7 +28,7 @@ function isCronRequest(req) {
   return !!req.headers.get("x-vercel-cron");
 }
 
-/** Where the report goes: the address set in Admin → Site, then ADMIN_EMAILS. */
+/** Where the report goes: the address set in Admin > Site, then ADMIN_EMAILS. */
 async function reportRecipient(svc) {
   try {
     const { data } = await svc
@@ -57,9 +47,8 @@ function notConfigured() {
       { error: "RESEND_API_KEY is not set, so no report can be sent.", info: "resend_missing" },
       { status: 500 });
   }
-  // No silent fallback to noreply@resend.dev: Resend refuses to send from a
-  // domain this project does not own, and the failure is invisible from here —
-  // the mail simply never arrives. Say what is missing instead.
+  // No fallback sender: Resend refuses domains this project does not own, and
+  // that failure is silent; the mail simply never arrives.
   if (!fromEmail) {
     return NextResponse.json(
       { error: "RESEND_FROM_EMAIL is not set, so no report can be sent.", info: "resend_from_missing" },
@@ -105,7 +94,6 @@ function offsetFrom(req) {
 
 export async function GET(req) {
   try {
-    // the scheduler: send, covering the month that just finished
     if (isCronRequest(req)) return await sendReport(-1);
 
     const auth = await requireAdmin(req);
